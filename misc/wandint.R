@@ -27,12 +27,28 @@ wandint = function(f,h,a,b,k,init,log.value=TRUE){
 }
 
 # # Test on the accuracy of wandint function
-# lnC = log(sqrt(2*pi))
 # mom0 = function(x) x-x+1
 # mom1 = function(x) x
 # mom2 = function(x) x^2
-# zkern = function (x) -x^2/2 # Kernel of standard normal distribution
-# exp(wandint(mom0,zkern,-10,10,50,-9)-lnC) # P(-10<Z<10)=1
-# (exp(wandint(mom0,zkern,1,1.5,50,1.1)-lnC)-(pnorm(1.5)-pnorm(1)))^2 # Should be 0
-# exp(wandint(mom1,zkern,-10,10,50,-9)-lnC) # E(Z)=0
-# exp(wandint(mom2,zkern,-10,10,50,-9)-lnC) # E(Z^2)=1
+# 
+# # On normal distribution
+# mu = 0.65; sig = 1.9
+# lnC = log(sqrt(2*pi)*sig)
+# kern = function (x) -((x-mu)/sig)^2/2 # Kernel of normal distribution
+# numprob = exp(wandint(mom0,kern,6,8,50,1.1)-lnC)
+# realprob = pnorm(8,mu,sig)-pnorm(6,mu,sig)
+# result_mean = exp(wandint(mom1,kern,-10,10,50,-9)-lnC)
+# result_var  = exp(wandint(mom2,kern,-10,10,50,-9)-lnC) - result_mean^2
+# data.frame(true=c(realprob,mu,sig^2), wandint=c(numprob,result_mean,result_var),
+#            row.names = c("some tail probability", "mean", "variance"))
+# 
+# On gamma distribution
+# alpha = 1.7; beta = 4.1 # requires alpha > 1 to ensure log-concavity
+# lnC = log(gamma(alpha)) - alpha*log(beta)
+# kern = function (x) (alpha-1)*log(x)-beta*x
+# numprob = exp(wandint(mom0,kern,2,4,50,1.1)-lnC)
+# realprob = pgamma(4,shape=alpha,rate=beta)-pgamma(2,shape=alpha,rate=beta)
+# result_mean = exp(wandint(mom1,kern,0.01,10,50,0.01)-lnC)
+# result_var = exp(wandint(mom2,kern,0.01,10,50,0.01)-lnC) - result_mean^2
+# data.frame(true=c(realprob,alpha/beta,alpha/(beta^2)), wandint=c(numprob,result_mean,result_var),
+#            row.names = c("some tail probability", "mean", "variance"))
