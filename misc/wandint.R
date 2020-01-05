@@ -1,15 +1,16 @@
-wandint = function(f,h,a,b,k,init){
+wandint = function(f,h,a,b,k,init,log.value=TRUE){
   # Requires numDeriv package while calculating second derivative of h
   # Calculate integral (*) numerically by the method introduced in Appendix B of Wand(2011).
   # 1. Note that h(x) has to be concave function (i.e. h''(x) < 0 for all a < x <b)
   # 2. As this function uses built-in `optim` function to differentiate h, init s.t. a < init < b is required.
   # 3. To prevent numerical underflow, ln{f(x)+k}+h(x) is integrated alternatively.
   #
-  # (*) E_X[f(X)] = \int_a^b f(x)exp{h(x)}dx
-  #               = \int_a^b {f(x)+k-k}exp{h(x)}dx
-  #               = \int_a^b exp[ln{f(x)+k}+h(x)]dx - k\int_a^b exp{h(x)}dx
-  #               = I1                              - k*I2
-  #
+  # Let I2 = \int_a^b exp{h(x)}dx(i.e. normalizing constant of a distribution whose kernel is exp{h(x)})
+  # (*) E_X[f(X)] = \int_a^b f(x)exp{h(x)}dx / I2
+  #               = \int_a^b {f(x)+k-k}exp{h(x)}dx / I2
+  #               = (\int_a^b exp[ln{f(x)+k}+h(x)]dx - k\int_a^b exp{h(x)}dx) / I2
+  #               = (I1                              - k*I2) / I2
+  #                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ what this function returns
   integrand = function(x) log(f(x)+k)+h(x)
   mu0 = optim(init,integrand,method="L-BFGS-B",lower=a,upper=b)$par
   sig = sqrt(-2/numDeriv::hessian(integrand,mu0)[1])
@@ -20,16 +21,18 @@ wandint = function(f,h,a,b,k,init){
   sig = sqrt(-2/numDeriv::hessian(h,mu0)[1])
   h2 = function(x) exp(h(mu0+sig*x)-h(mu0))
   lnI2 = h(mu0)+log(sig)+log(integrate(h2,lower=(a-mu0)/sig,upper=(b-mu0)/sig)$value)
-  
-  return(exp(lnI1)-k*exp(lnI2))
+  result = exp(lnI1)-k*exp(lnI2)
+  if (log.value) return(log(result))
+  return(result)
 }
 
-# C = 1/sqrt(2*pi)
+# # Test on the accuracy of wandint function
+# lnC = log(sqrt(2*pi))
 # mom0 = function(x) x-x+1
 # mom1 = function(x) x
 # mom2 = function(x) x^2
 # zkern = function (x) -x^2/2 # Kernel of standard normal distribution
-# C*wandint(mom0,zkern,-10,10,50,-9) # P(-10<Z<10)=1
-# (C*wandint(mom0,zkern,1,1.5,50,1.1)-(pnorm(1.5)-pnorm(1)))^2 # Should be 0
-# C*wandint(mom1,zkern,-10,10,50,-9) # E(Z)=0
-# C*wandint(mom2,zkern,-10,10,50,-9) # E(Z^2)=1
+# exp(wandint(mom0,zkern,-10,10,50,-9)-lnC) # P(-10<Z<10)=1
+# (exp(wandint(mom0,zkern,1,1.5,50,1.1)-lnC)-(pnorm(1.5)-pnorm(1)))^2 # Should be 0
+# exp(wandint(mom1,zkern,-10,10,50,-9)-lnC) # E(Z)=0
+# exp(wandint(mom2,zkern,-10,10,50,-9)-lnC) # E(Z^2)=1
