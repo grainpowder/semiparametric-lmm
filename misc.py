@@ -3,23 +3,39 @@ from numdifftools import Hessian
 from scipy.optimize import minimize
 from scipy.integrate import quad
 
+def makeZ(nrow):
+    """
+    Returns sparse matrix containing 0 or 1 to be used in random intercept model framework.
+    """
+    nrows = np.cumsum(nrow)
+    N = nrows[-1]
+    r = np.shape(nrows)[0]
+    Z = np.zeros(N*r).reshape(N, r)
+    Z[0:nrows[0], 0] = 1
+    for col in range(1, r):
+        Z[nrows[col-1]:nrows[col], col] = 1
+    return Z
+
+# # Testing makeZ function
+# makeZ([3, 4, 1])
+
 
 def wandint(f, h, lo, up, k, init, log=True):
     """
-        Calculates integral (*) numerically by the method introduced in Appendix B of Wand(2011).
-        1. Note that h(x) has to be concave function (i.e. h''(x) < 0 for all a < x <b)
-        2. As this function uses minimize function in scipy, integrand is converted into convex function when finding extreme values
-        3. To prevent numerical underflow, ln{f(x)+k}+h(x) is integrated alternatively.
+    Calculates integral (*) numerically by the method introduced in Appendix B of Wand(2011).
+    1. Note that h(x) has to be concave function (i.e. h''(x) < 0 for all a < x <b)
+    2. As this function uses minimize function in scipy, integrand is converted into convex function when finding extreme values
+    3. To prevent numerical underflow, ln{f(x)+k}+h(x) is integrated alternatively.
 
-        Let I2 = \int_lo^up exp{h(x)}dx(i.e. normalizing constant of a distribution whose kernel is exp{h(x)})
-        (*) E_X[f(X)] = \int_a^b f(x)exp{h(x)}dx / I2
-                      = \int_a^b {f(x)+k-k}exp{h(x)}dx / I2
-                      = (\int_a^b exp[ln{f(x)+k}+h(x)]dx - k\int_a^b exp{h(x)}dx) / I2
-                      = (I1                              - k*I2) / I2
-                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ what this function returns
-        
-        Note : Unlike R, this Python implementation occasionally emits RuntimeWarning message when calculating Hessian.
-               So suppressing those message using `warning` module is recommended.
+    Let I2 = \int_lo^up exp{h(x)}dx(i.e. normalizing constant of a distribution whose kernel is exp{h(x)})
+    (*) E_X[f(X)] = \int_a^b f(x)exp{h(x)}dx / I2
+                    = \int_a^b {f(x)+k-k}exp{h(x)}dx / I2
+                    = (\int_a^b exp[ln{f(x)+k}+h(x)]dx - k\int_a^b exp{h(x)}dx) / I2
+                    = (I1                              - k*I2) / I2
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ what this function returns
+    
+    Note : Unlike R, this Python implementation occasionally emits RuntimeWarning message when calculating Hessian.
+            So suppressing those message using `warning` module is recommended.
     """
     integrand = lambda x: -np.log(f(x)+k) - h(x)
     mu0  = minimize(integrand, init, method="L-BFGS-B", bounds=[(lo,up)]).x[0]
@@ -77,3 +93,4 @@ def wandint(f, h, lo, up, k, init, log=True):
 # numerical = np.concatenate((num_mean, num_var, num_prob), axis=0)
 
 # true; numerical
+

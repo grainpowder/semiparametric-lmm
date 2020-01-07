@@ -1,2 +1,2 @@
-from . import gamma
-from .. import misc
+from .StochasticFrontier import *
+import misc
