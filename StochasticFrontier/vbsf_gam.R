@@ -10,8 +10,8 @@ vbsf_gam = function(y,w,Z,productivity=TRUE,prior=NULL,tol=1e-4,maxiter=500){
   ti = apply(Z,2,sum)
   # Initialize parameters
   if(is.null(prior)){
-    rthe.0 = rsig.0 = 0.1
-    slam.0 = sthe.0 = ssig.0 = 0.1
+    rthe.0 = rsig.0 = 1.1
+    slam.0 = sthe.0 = ssig.0 = 1.1
     sigbeta2 = 100}
   else{
     rthe.0 = prior$rthe.0
@@ -26,7 +26,8 @@ vbsf_gam = function(y,w,Z,productivity=TRUE,prior=NULL,tol=1e-4,maxiter=500){
   rsig.q = rsig.0+N
   sig.ratio = lam.ratio = the.ratio = 1
   mubeta.q = solve(t(W)%*%W)%*%t(W)%*%y
-  muu.q = sigu.q = lnu = rep(low,n)
+  muu.q = lnu = rep(low,n)
+  sigu.q = rep(1/low,n)
   # Predefine f functions to be frequently used
   const = function(x) x-x+1
   x1 = function(x) x
@@ -45,7 +46,7 @@ vbsf_gam = function(y,w,Z,productivity=TRUE,prior=NULL,tol=1e-4,maxiter=500){
     # u(can be improved by using foreach functionality)
     res = drop(t(Z)%*%(y-W%*%mubeta.q))
     for (i in 1:n) {
-      integrand = function(u) (the.ratio-1)*log(u)+(-lam.ratio+sgn*res[i])*u-(sig.ratio*ti[i]/2)*(u^2)
+      integrand = function(u) (the.ratio-1)*log(u)+(-lam.ratio+sgn*sig.ratio*res[i])*u-(sig.ratio*ti[i]/2)*(u^2)
       lnC       = wandint(const,  integrand, a=low, b=7, k=10.1, init=muu.q[i]+1, log.value=TRUE)
       first     = exp(wandint(x1, integrand, a=low, b=7, k=10.1, init=muu.q[i]+1, log.value=TRUE)-lnC)
       second    = exp(wandint(x2, integrand, a=low, b=7, k=10.1, init=muu.q[i]+1, log.value=TRUE)-lnC)
@@ -79,7 +80,7 @@ vbsf_gam = function(y,w,Z,productivity=TRUE,prior=NULL,tol=1e-4,maxiter=500){
 
 source("../misc/wandint.R")
 source("../misc/make_Z.R")
-set.seed(1)
+set.seed(2)
 n = 50
 ti = 4; D = 10
 Z = make_Z(rep(ti, n))
@@ -94,6 +95,9 @@ y = drop(cbind(1,w)%*%betaT-rep(u,each=ti)+rnorm(nrow(Z),sd=sigma))
 result = vbsf_gam(y,w,Z)
 
 plot(result$muu.q, u)
+lines(-5:5, -5:5)
+plot(result$mubeta.q, betaT)
+lines(-5:5, -5:5)
 sqrt(result$ssig.q/result$rsig.q)
 result$Elam
 result$Etheta
