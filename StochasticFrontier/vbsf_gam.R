@@ -77,27 +77,27 @@ vbsf_gam = function(y,w,Z,productivity=TRUE,prior=NULL,tol=1e-4,maxiter=500){
     muu.q=muu.q,sigu.q=sigu.q,
     rsig.q=rsig.q,ssig.q=ssig.q,
     Elam=lam.ratio,Etheta=the.ratio))}
-
-source("../misc/wandint.R")
-source("../misc/make_Z.R")
-set.seed(2)
-n = 50
-ti = 4; D = 10
-Z = make_Z(rep(ti, n))
-sigma = 0.5
-theta = 2
-lambda = 2
-
-betaT = rnorm(D+1)
-w = matrix(rnorm(nrow(Z)*D), ncol=D)
-u = rgamma(n,shape=theta,rate=lambda)
-y = drop(cbind(1,w)%*%betaT-rep(u,each=ti)+rnorm(nrow(Z),sd=sigma))
-result = vbsf_gam(y,w,Z)
-
-plot(result$muu.q, u)
-lines(-5:5, -5:5)
-plot(result$mubeta.q, betaT)
-lines(-5:5, -5:5)
-sqrt(result$ssig.q/result$rsig.q)
-result$Elam
-result$Etheta
+# # Simulation
+# source("../misc/wandint.R")
+# source("../misc/make_Z.R")
+# set.seed(2)
+# n = 50
+# ti = 4; D = 10
+# Z = make_Z(rep(ti, n))
+# sigma = 0.5
+# theta = 2
+# lambda = 2
+# 
+# betaT = rnorm(D+1)
+# w = matrix(rnorm(nrow(Z)*D), ncol=D)
+# u = rgamma(n,shape=theta,rate=lambda)
+# y = drop(cbind(1,w)%*%betaT-rep(u,each=ti)+rnorm(nrow(Z),sd=sigma))
+# result = vbsf_gam(y,w,Z)
+# 
+# plot(result$muu.q, u)
+# lines(-5:5, -5:5)
+# plot(result$mubeta.q, betaT)
+# lines(-5:5, -5:5)
+# sqrt(result$ssig.q/result$rsig.q)
+# result$Elam
+# result$Etheta
