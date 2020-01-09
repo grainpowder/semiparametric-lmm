@@ -54,42 +54,40 @@ def wandint(f, h, lo, up, k, init, log=True):
         return(result)
 
 
-# Test on the accuracy of wandint function
-from scipy.stats import norm, gamma
-from scipy.special import gamma as G
-import warnings
-# warnings.filterwarnings("ignore")
+# # Test on the accuracy of wandint function
+# from scipy.stats import norm, gamma
+# from scipy.special import gamma as G
 
-const = lambda x: x-x+1
-x1 = lambda x: x
-x2 = lambda x: x**2
+# const = lambda x: x-x+1
+# x1 = lambda x: x
+# x2 = lambda x: x**2
 
-# On normal distribution
-mu = 0.65; sig = 1.9; low = 6; upp = 8
-true_prob = norm.cdf(upp,mu,sig)-norm.cdf(low,mu,sig)
-true = np.array([mu, sig, true_prob])
+# # On normal distribution
+# mu = 0.65; sig = 1.9; low = 6; upp = 8
+# true_prob = norm.cdf(upp,mu,sig)-norm.cdf(low,mu,sig)
+# true = np.array([mu, sig, true_prob])
 
-lnC = np.log(np.sqrt(2*np.pi)*sig)
-kern = lambda x: -((x-mu)/sig)**2/2
-num_prob = np.exp(wandint(const, kern, low, upp, 50, 1.1)-lnC)[0]
-num_mean = np.exp(wandint(x1,kern,-10,10,50,-9)-lnC)[0]
-num_var  = (np.exp(wandint(x2,kern,-10,10,50,-9)-lnC) - num_mean**2)[0]
-numerical = np.array([num_mean, np.sqrt(num_var), num_prob])
+# lnC = np.log(np.sqrt(2*np.pi)*sig)
+# kern = lambda x: -((x-mu)/sig)**2/2
+# num_prob = np.exp(wandint(const, kern, low, upp, 50, 1.1)-lnC)[0]
+# num_mean = np.exp(wandint(x1,kern,-10,10,50,-9)-lnC)[0]
+# num_var  = (np.exp(wandint(x2,kern,-10,10,50,-9)-lnC) - num_mean**2)[0]
+# numerical = np.array([num_mean, np.sqrt(num_var), num_prob])
 
-print(np.allclose(true, numerical))
+# print(np.allclose(true, numerical))
 
-# On gamma distribution
-alpha = 1.7; beta = 4.1; low = 2; upp = 4
-true_prob = gamma.cdf(upp, a=alpha, scale=1/beta)-gamma.cdf(low, a=alpha, scale=1/beta)
-true = np.array([alpha/beta, alpha/beta**2, true_prob])
+# # On gamma distribution
+# alpha = 1.7; beta = 4.1; low = 2; upp = 4
+# true_prob = gamma.cdf(upp, a=alpha, scale=1/beta)-gamma.cdf(low, a=alpha, scale=1/beta)
+# true = np.array([alpha/beta, alpha/beta**2, true_prob])
 
-lnC = np.log(G(alpha)) - alpha*np.log(beta)
-kern = lambda x: (alpha-1)*np.log(x) - beta*x
-num_prob = np.exp(wandint(const, kern, low, upp, 50, 2.1)-lnC)[0]
-num_mean = np.exp(wandint(x1,kern,0.01,10,50,0.1)-lnC)[0]
-num_var  = (np.exp(wandint(x2,kern,0.01,10,50,0.1)-lnC) - num_mean**2)[0]
-numerical = np.array([num_mean, num_var, num_prob])
+# lnC = np.log(G(alpha)) - alpha*np.log(beta)
+# kern = lambda x: (alpha-1)*np.log(x) - beta*x
+# num_prob = np.exp(wandint(const, kern, low, upp, 50, 2.1)-lnC)[0]
+# num_mean = np.exp(wandint(x1,kern,0.01,10,50,0.1)-lnC)[0]
+# num_var  = (np.exp(wandint(x2,kern,0.01,10,50,0.1)-lnC) - num_mean**2)[0]
+# numerical = np.array([num_mean, num_var, num_prob])
 
-print(true)
-print(numerical)
+# print(true)
+# print(numerical)
 

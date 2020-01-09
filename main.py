@@ -4,10 +4,10 @@ from misc import makeZ
 
 # Simulation
 gammaSF = SF.Gamma()
-n = 50; ti = 4
+n = 20; ti = 5
 N = n*ti; D = 10
-nrows = np.ones(n, dtype=int)
-Z = makeZ(nrows*ti)
+nrows = np.ones(n, dtype=int)*ti
+Z = makeZ(nrows)
 sigma = 0.5
 theta = 2
 lamb = 2

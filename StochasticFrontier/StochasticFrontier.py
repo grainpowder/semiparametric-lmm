@@ -2,6 +2,7 @@ from misc import wandint
 from scipy.special import pbdv, gamma, digamma
 from numpy.linalg import inv
 import numpy as np
+import pdb
 
 __all__ = ['Gamma']
 
@@ -39,7 +40,7 @@ class Gamma:
         return(numerator/denominator)
 
 
-    def fit(self, y, w, Z, tol=1e-4, maxiter=500):
+    def fit(self, y, w, Z, tol=1e-6, maxiter=500):
         """
         Estimates parameters composing VB-SFA with gamma distributed inefficiency contained
         """
@@ -55,7 +56,7 @@ class Gamma:
         rep_n = np.ones(n)
         # Storages to keep updated value
         sig_ratio, lam_ratio, the_ratio = [1]*3
-        mubeta_q = inv(WtW)@W.T@y # Initialize as MLE
+        mubeta_q = np.zeros(D+1)
         muu_q = rep_n*0
         lnu = rep_n*0
         # Predefine function f to be applied into numerical integration
@@ -63,23 +64,21 @@ class Gamma:
         x1 = lambda x: x
         lx = lambda x: np.log(x)
         # Iterate
-        for _ in range(maxiter):
+        for iter in range(maxiter):
             mubeta_q_old = mubeta_q
             muu_q_old = muu_q
             # beta
             sigbeta_q = sig_ratio*WtW+sb2diag
-            sigbeta_q = (sigbeta_q+sigbeta_q.T)/2
             sigbeta_q = inv(sigbeta_q)
             mubeta_q = sig_ratio*sigbeta_q@W.T@(y-self.sgn*Z@muu_q)
-            mubeta_q = mubeta_q.flatten()
             # u
-            mu = -lam_ratio+self.sgn*Z.T@(y-W@mubeta_q)
-            v2 = ti*sig_ratio
+            mu = -lam_ratio+self.sgn*sig_ratio*Z.T@(y-W@mubeta_q)
+            v2 = ti*sig_ratio/2
             theta = rep_n*the_ratio
             args1 = [tup for tup in zip(theta, rep_n, mu, np.sqrt(v2))]
             args2 = [tup for tup in zip(theta, rep_n*2, mu, np.sqrt(v2))]
             muu_q = np.array([result for result in map(self.moment_u, args1)])
-            sigu_q = np.array([result for result in map(self.moment_u, args2)])-muu_q ** 2
+            sigu_q = np.array([result for result in map(self.moment_u, args2)])-muu_q**2
             for i in range(n):
                 integrand = lambda u: (the_ratio-1)*np.log(u)+mu[i]*u-v2[i]*u**2
                 lnC = wandint(const, integrand, 1e-2, 10, 50.1, 0.1, log=False)
@@ -99,6 +98,11 @@ class Gamma:
             trterm2 = np.sum(ZtZ@sigu_q)
             ssig_q = self.ssig_0+(ssterm+trterm1+trterm2)/2
             sig_ratio = rsig_q/ssig_q
+            # Sanity check
+            values = np.array(list(mubeta_q)+list(muu_q)+list(lnu))
+            if np.sum(np.isnan(values)) > 0:
+                print(f">>> While executing iteration after {iter}-th loop,")
+                raise ValueError("NaN occured.")
             # Convergence
             rmse1 = np.sqrt(np.mean((mubeta_q-mubeta_q_old)**2))
             rmse2 = np.sqrt(np.mean((muu_q-muu_q_old)**2))
