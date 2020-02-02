@@ -1,22 +1,22 @@
 normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
 {
-  W = rbind(1, w)
+  D = ncol(w)
+  W = cbind(1, w)
   WtW = crossprod(W)
   N = ncol(Z)
   T = nrow(Z)
   ti = apply(Z, 2, sum)
-  D = ncol(W)
   # prior parameters
   # Note : be sure to make base distribution as flat as possible
   if (is.null(prior))
   {
-    asig = bsig = 1
-    aalp = balp = 1
-    alam = blam = 1e-3
+    asig = bsig = 0.1
+    aalp = balp = 0.1
+    alam = blam = 0.01
     mu0 = 0
-    sig02 = 1e3
+    sig02 = 100
     mubeta.0 = rep(0, D+1)
-    sigbeta.0 = diag(1e3, D+1)
+    sigbeta.0 = diag(100, D+1)
   }
   else
   {
@@ -37,16 +37,17 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
   alamtls = rep(alam, R)
   blamtls = rep(blam, R)
   lam.ratio = alamtls / blamtls
-  muu.q = rep(0, T)
-  sigu.q = rep(sig02, T)
+  muu.q = rep(0, N)
+  sigu.q = rep(sig02, N)
   kappa = matrix(runif(N*R), N, R)
-  kappa = kappa / apply(kappa, sum, 1)
+  kappa = kappa / apply(kappa, 1, sum)
   mutls = rep(0, R)
   sigtls = rep(sig02, R)
   gam1s = gam2s = rep(1, R)
+  mubeta.q = rep(0, D+1)
   # Define predetermined values
   sb0i = solve(sigbeta.0)
-  sb0imb0 = sb0inv %*% mubeta.0
+  sb0imb0 = sb0i %*% mubeta.0
   asigtl = asig + (N*T/2)
   aalptl = aalp + R - 1
   # Function to use during iteration
@@ -74,7 +75,7 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
     kappa_lam = t(kappa) * lam.ratio
     sigu.q = 1 / (apply(kappa_lam,2,sum) + ti*sig.ratio)
     muu.q = apply(kappa_lam*mutls,2,sum) + sig.ratio*t(Z)%*%(y-W%*%mubeta.q)
-    muu.q = sigu.q * muu.q
+    muu.q = drop(sigu.q * muu.q)
     
     # kappa(prior...)
     logstick = digamma(gam1s) - digamma(gam1s+gam2s)
@@ -106,7 +107,7 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
     SS = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
     SS = t(SS) + sigu.q
     SS = kappa*SS
-    blamtls = blam + 0.5*apply(SS, 2, sum)
+    blamtls = blam + 0.5*apply(SS, 1, sum)
     lam.ratio = alamtls / blamtls
     
     # Convergence
@@ -117,8 +118,24 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
   return(list(
     mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
     muu.q=muu.q, sigu.q=sigu.q,
+    mutls=mutls, sigtls=sigtls,
     kappa=kappa
   ))
 }
-
-# simulation
+# 
+# # simulation
+# source("../misc/make_Z.R")
+# N = 50; T = 4; D = 5
+# Z = make_Z(rep(T, N))
+# set.seed(10)
+# beta = rnorm(D+1)
+# w = matrix(rnorm(N*T*D), N*T, D)
+# assigner = runif(N)
+# mu1 = 2; mu2 = -2
+# u = rnorm(N, mu1)
+# u[assigner > 0.5] = rnorm(sum(assigner > 0.5), mu2)
+# y = cbind(1, w)%*%beta + Z%*%u + rnorm(nrow(Z))
+# result = normaldpm_lmm(y,w,Z,10)
+# par(mfrow=c(1,2))
+# plot(beta[-1], result$mubeta.q[-1])
+# plot(u, result$muu.q)
