@@ -1,0 +1,45 @@
+---
+title: "Simulation"
+author: "Sunsik Kim"
+output: pdf_document
+---
+```{r echo=FALSE}
+source("normaldpm_lmm.R")
+source("../misc/make_Z.R")
+```
+
+# Normal DPM in LMM
+
+## Dimension setting
+```{r}
+set.seed(10)
+N = 50; T = 4; D = 7
+Z = make_Z(rep(T, N))
+```
+
+## Data generation
+```{r}
+beta = rnorm(D+1)
+w = matrix(rnorm(N*T*D), N*T, D)
+# Represent random intercept as mixture of 3 normal distributions
+assigner = runif(N)
+mu1 = 3; mu2 = 0; mu3 = -3
+u = rnorm(N, mu1, 0.49)
+u[assigner > 0.33] = rnorm(sum(assigner > 0.33), mu2, 0.49)
+u[assigner > 0.66] = rnorm(sum(assigner > 0.66), mu3, 0.49)
+y = cbind(1, w)%*%beta + Z%*%u + rnorm(nrow(Z))
+```
+
+## Result presentation
+```{r echo=FALSE, fig.height=3.8, fig.width=8, fig.align="center"}
+R = 10
+start = as.numeric(Sys.time())
+result = normaldpm_lmm(y,w,Z,R) # truncate at R=10
+print(paste(round(as.numeric(Sys.time())-start, 4), "seconds elapsed."))
+print(paste0("Truncated at R=",R))
+par(mfrow=c(1,2))
+plot(beta[-1], result$mubeta.q[-1], main="Fixed effects", xlab="True", ylab="Estimated")
+lines(-10:10, -10:10)
+plot(u, result$muu.q, main="Random intercepts", xlab="True", ylab="Estimated")
+lines(-10:10, -10:10)
+```

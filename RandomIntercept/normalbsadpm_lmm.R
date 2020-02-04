@@ -43,20 +43,23 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
     mupsi.q.start = prior$mupsi.q.start
   }
   # Define containers
-  tau.ratio = atau / btau
-  alp.ratio = aalp / balp
-  sig.ratio = asig / bsig
-  alamtls = rep(alam, R)
-  blamtls = rep(blam, R)
-  lam.ratio = alamtls / blamtls
+  # Level1
+  mubeta.q = rep(0, D+1)
   muu.q = rep(0, N)
   sigu.q = rep(sig02, N)
+  sig.ratio = asig / bsig
+  # Level2
   kappa = matrix(runif(N*R), N, R)
   kappa = kappa / apply(kappa, 1, sum)
   mutls = rep(0, R)
   sigtls = rep(sig02, R)
-  gam1s = gam2s = rep(1, R)
-  mubeta.q = rep(0, D+1)
+  alamtls = rep(alam, R)
+  blamtls = rep(blam, R)
+  lam.ratio = alamtls / blamtls
+  # Level3 or above
+  gam1s = gam2s = rep(0.1, R)
+  alp.ratio = aalp / balp
+  tau.ratio = atau / btau
   # nonparametric
   mutheta.q = rep(0,J)
   mupsi.q = mupsi.q.start
@@ -124,33 +127,35 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
     logstick = digamma(gam1s) - digamma(gam1s+gam2s)
     log1mstick = cumsum(digamma(gam2s) - digamma(gam1s+gam2s))
     qstick = c(logstick, 0) + c(0, log1mstick)
-    S = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
-    S = t(t(S)+sigu.q)*lam.ratio + digamma(alamtls) - log(blamtls)
-    S = t(qstick + 0.5*S)
-    S = exp(S - apply(S,1,max))
-    for (cidx in 1:ncol(S)) S[, cidx] = numreplace(S[, cidx])
-    kappa = S / apply(S, 1, sum)
+    
+    Sir = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
+    Sir = t(t(Sir)+sigu.q)*lam.ratio - digamma(alamtls) + log(blamtls)
+    Sir = t(qstick - 0.5*Sir)
+    
+    Sir = exp(Sir - apply(Sir,1,max))
+    for (cidx in 1:ncol(Sir)) Sir[, cidx] = numreplace(Sir[, cidx],tol=1e-10)
+    kappa = Sir / apply(Sir,1,sum)
     
     # stick length
-    gam1s = 1 + apply(kappa, 2, sum)[-R]
+    gam1s = 1 + apply(kappa,2,sum)[-R]
     revcs_kappa = kappa
     for (ridx in 1:nrow(kappa)) revcs_kappa[ridx,] = revcumsum(revcs_kappa[ridx,])
-    gam2s = alp.ratio + apply(revcs_kappa[, -1], 2, sum)
+    gam2s = alp.ratio + apply(revcs_kappa[, -1],2,sum)
     
     # alpha
     balptl = balp - sum(digamma(gam2s)-digamma(gam1s+gam2s))
     alp.ratio = aalptl / balptl
     
     # parameters: mean
-    sigtls = 1/(1/sig02 + apply(t(kappa)*lam.ratio, 1, sum))
-    mutls = mu0/sig02 + apply(t(kappa*muu.q)*lam.ratio, 1, sum)
+    sigtls = 1 / (1/sig02+apply(t(kappa)*lam.ratio, 1, sum))
+    mutls = sigtls * (mu0/sig02+apply(t(kappa*muu.q)*lam.ratio, 1, sum))
     
     # parameters: variance
-    alamtls = alam + 0.5*apply(kappa, 1, sum)
-    SS = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
-    SS = t(SS) + sigu.q
-    SS = kappa*SS
-    blamtls = blam + 0.5*apply(SS, 1, sum)
+    alamtls = alam + 0.5*apply(kappa,2,sum)
+    ssterm_mu = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
+    ssterm_mu = t(ssterm_mu) + sigu.q
+    ssterm_mu = kappa*ssterm_mu
+    blamtls = blam + 0.5*apply(ssterm_mu,2,sum)
     lam.ratio = alamtls / blamtls
     
     # sigma
@@ -159,7 +164,7 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
     trterm2 = sum(ti*sigu.q)
     trterm3 = sum(diag(vphitvphi%*%sigtheta.q))
     trterm4 = sum(diag((outer(mutheta.q, mutheta.q)+sigtheta.q)%*%DQvec))
-    bsigtl = ssterm + 0.5*(trterm1 + trterm2 + trterm3 + trterm4*tau.ratio)
+    bsigtl = bsig + 0.5*(ssterm+trterm1+trterm2+trterm3+trterm4*tau.ratio)
     sig.ratio = asigtl / bsigtl
     
     # tau
@@ -196,9 +201,9 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
     convergence2 = sum((muu.q - muu.q.old)^2) < tol
     if (convergence1 & convergence2) break
   }
-  
-  post_curve=drop(vphi%*%mutheta.q)
-  curve_var=drop(vphi^2%*%diag(sigtheta.q))
+  browser()
+  post_curve = drop(vphi%*%mutheta.q)
+  curve_var = drop(vphi^2%*%diag(sigtheta.q))
   return(list(
     mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
     muu.q=muu.q, sigu.q=sigu.q,
@@ -210,30 +215,30 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
   ))
 }
 
-# # simulation
-# source("../misc/make_Z.R")
-# N = 50; T = 4; D = 10 # D = 5 causes error. Seems like moderate unstability is present.
-# Z = make_Z(rep(T, N))
-# set.seed(10)
-# beta = rnorm(D+1)
-# w = matrix(rnorm(N*T*D), N*T, D)
-# f = function(x) 3*x*sin(pi*x)
-# x = 3*runif(N*T); ord = order(x)
-# assigner = runif(N)
-# mu1 = 2; mu2 = -2
-# u = rnorm(N, mu1)
-# u[assigner > 0.5] = rnorm(sum(assigner > 0.5), mu2)
-# y = cbind(1, w)%*%beta + Z%*%u + f(x) + rnorm(nrow(Z))
-# result = normalbsadpm_lmm(y,x,w,Z,23,10)
-# par(mfrow=c(1,2))
-# plot(beta[-1], result$mubeta.q[-1])
-# lines(-5:5,-5:5)
-# plot(u, result$muu.q)
-# lines(-5:5,-5:5)
-# 
-# res = y-(cbind(1,w)%*%result$mubeta.q-Z%*%result$muu.q)
-# par(mar=c(4,2,2,1),mfrow=c(1,1))
-# plot(x,res, main="Fitted mean curve and 95% credible region", ylab="")
-# lines(x[ord],result$post_curve[ord],lwd=3,col=3)
-# lines(x[ord],result$post_upper[ord],lwd=2,lty=2)
-# lines(x[ord],result$post_lower[ord],lwd=2,lty=2)
+# simulation
+source("../misc/make_Z.R")
+N = 50; T = 4; D = 5
+Z = make_Z(rep(T, N))
+set.seed(10)
+beta = rnorm(D+1)
+w = matrix(rnorm(N*T*D), N*T, D)
+f = function(x) -3*(x-1.5)^2
+x = 3*runif(N*T); ord = order(x)
+assigner = runif(N)
+mu1 = 2; mu2 = -2
+u = rnorm(N, mu1)
+u[assigner > 0.5] = rnorm(sum(assigner > 0.5), mu2)
+y = cbind(1, w)%*%beta + Z%*%u + f(x) + rnorm(nrow(Z))
+result = normalbsadpm_lmm(y,x,w,Z,10,20)
+par(mfrow=c(1,2))
+plot(beta[-1], result$mubeta.q[-1])
+lines(-5:5,-5:5)
+plot(u, result$muu.q)
+lines(-5:5,-5:5)
+
+res = y-(cbind(1,w)%*%result$mubeta.q-Z%*%result$muu.q)
+par(mar=c(4,2,2,1),mfrow=c(1,1))
+plot(x,res, main="Fitted mean curve and 95% credible region", ylab="")
+lines(x[ord],result$post_curve[ord],lwd=3,col=3)
+lines(x[ord],result$post_upper[ord],lwd=2,lty=2)
+lines(x[ord],result$post_lower[ord],lwd=2,lty=2)

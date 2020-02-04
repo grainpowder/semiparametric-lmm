@@ -32,26 +32,29 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
     sigbeta.0 = prior$sigbeta.0
   }
   # Define containers
-  alp.ratio = aalp / balp
-  sig.ratio = asig / bsig
-  alamtls = rep(alam, R)
-  blamtls = rep(blam, R)
-  lam.ratio = alamtls / blamtls
+  # Level1
+  mubeta.q = rep(0, D+1)
   muu.q = rep(0, N)
   sigu.q = rep(sig02, N)
+  sig.ratio = asig / bsig
+  # Level2
   kappa = matrix(runif(N*R), N, R)
   kappa = kappa / apply(kappa, 1, sum)
   mutls = rep(0, R)
   sigtls = rep(sig02, R)
-  gam1s = gam2s = rep(1, R)
-  mubeta.q = rep(0, D+1)
+  alamtls = rep(alam, R)
+  blamtls = rep(blam, R)
+  lam.ratio = alamtls / blamtls
+  # Level3 or above
+  gam1s = gam2s = rep(0.1, R-1)
+  alp.ratio = aalp / balp
   # Define predetermined values
   sb0i = solve(sigbeta.0)
   sb0imb0 = sb0i %*% mubeta.0
   asigtl = asig + (N*T/2)
   aalptl = aalp + R - 1
   # Function to use during iteration
-  numreplace = function(x, tol=1e-10) {x[x<tol] = tol; x} # function to replace value(s) less than 1e-10 to 1e-10
+  numreplace = function(x, tol) {x[x<tol] = tol; x} # function to replace value(s) less than 1e-10 to 1e-10
   revcumsum = function(x) {rev(cumsum(rev(x)))}
   # Begin iteration
   for (iter in 1:maxiter)
@@ -65,15 +68,15 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
     mubeta.q = drop(mubeta.q)
     
     # sigma
-    ssterm = sum((y-W%*%mubeta.q-Z%*%muu.q)^2)
-    trterm1 = sum(diag(WtW%*%mubeta.q))
-    trterm2 = sum(ti*sigu.q)
-    bsigtl = ssterm + trterm1 + trterm2
+    ssterm = sum((y - W%*%mubeta.q - Z%*%muu.q)^2)
+    trterm1 = sum(diag(WtW %*% mubeta.q))
+    trterm2 = sum(ti * sigu.q)
+    bsigtl = bsig + 0.5*(ssterm+trterm1+trterm2)
     sig.ratio = asigtl / bsigtl
     
     # random intercept
     kappa_lam = t(kappa) * lam.ratio
-    sigu.q = 1 / (apply(kappa_lam,2,sum) + ti*sig.ratio)
+    sigu.q = 1 / (apply(kappa_lam,2,sum)+ti*sig.ratio)
     muu.q = apply(kappa_lam*mutls,2,sum) + sig.ratio*t(Z)%*%(y-W%*%mubeta.q)
     muu.q = drop(sigu.q * muu.q)
     
@@ -81,33 +84,34 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
     logstick = digamma(gam1s) - digamma(gam1s+gam2s)
     log1mstick = cumsum(digamma(gam2s) - digamma(gam1s+gam2s))
     qstick = c(logstick, 0) + c(0, log1mstick)
-    S = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
-    S = t(t(S)+sigu.q)*lam.ratio + digamma(alamtls) - log(blamtls)
-    S = t(qstick + 0.5*S)
-    S = exp(S - apply(S,1,max))
-    for (cidx in 1:ncol(S)) S[, cidx] = numreplace(S[, cidx])
-    kappa = S / apply(S, 1, sum)
+    
+    Sir = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
+    Sir = t(t(Sir)+sigu.q)*lam.ratio - digamma(alamtls) + log(blamtls)
+    Sir = t(qstick - 0.5*Sir)
+    Sir = exp(Sir - apply(Sir,1,max))
+    for (cidx in 1:ncol(Sir)) Sir[, cidx] = numreplace(Sir[, cidx],tol=1e-10)
+    kappa = Sir / apply(Sir,1,sum)
     
     # stick length
-    gam1s = 1 + apply(kappa, 2, sum)[-R]
+    gam1s = 1 + apply(kappa,2,sum)[-R]
     revcs_kappa = kappa
     for (ridx in 1:nrow(kappa)) revcs_kappa[ridx,] = revcumsum(revcs_kappa[ridx,])
-    gam2s = alp.ratio + apply(revcs_kappa[, -1], 2, sum)
+    gam2s = alp.ratio + apply(revcs_kappa[, -1],2,sum)
     
     # alpha
     balptl = balp - sum(digamma(gam2s)-digamma(gam1s+gam2s))
     alp.ratio = aalptl / balptl
     
     # parameters: mean
-    sigtls = 1/(1/sig02 + apply(t(kappa)*lam.ratio, 1, sum))
-    mutls = mu0/sig02 + apply(t(kappa*muu.q)*lam.ratio, 1, sum)
+    sigtls = 1 / (1/sig02+apply(t(kappa)*lam.ratio, 1, sum))
+    mutls = sigtls * (mu0/sig02+apply(t(kappa*muu.q)*lam.ratio, 1, sum))
     
-    # parameters: precision
-    alamtls = alam + 0.5*apply(kappa, 1, sum)
-    SS = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
-    SS = t(SS) + sigu.q
-    SS = kappa*SS
-    blamtls = blam + 0.5*apply(SS, 1, sum)
+    # parameters: variance
+    alamtls = alam + 0.5*apply(kappa,2,sum)
+    ssterm_mu = (t(matrix(muu.q, N, R))-mutls)^2 + sigtls
+    ssterm_mu = t(ssterm_mu) + sigu.q
+    ssterm_mu = kappa*ssterm_mu
+    blamtls = blam + 0.5*apply(ssterm_mu,2,sum)
     lam.ratio = alamtls / blamtls
     
     # Convergence
@@ -119,23 +123,7 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
     mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
     muu.q=muu.q, sigu.q=sigu.q,
     mutls=mutls, sigtls=sigtls,
+    asigtl=asigtl, bsigtl=bsigtl,
     kappa=kappa
   ))
 }
-# 
-# # simulation
-# source("../misc/make_Z.R")
-# N = 50; T = 4; D = 5
-# Z = make_Z(rep(T, N))
-# set.seed(10)
-# beta = rnorm(D+1)
-# w = matrix(rnorm(N*T*D), N*T, D)
-# assigner = runif(N)
-# mu1 = 2; mu2 = -2
-# u = rnorm(N, mu1)
-# u[assigner > 0.5] = rnorm(sum(assigner > 0.5), mu2)
-# y = cbind(1, w)%*%beta + Z%*%u + rnorm(nrow(Z))
-# result = normaldpm_lmm(y,w,Z,10)
-# par(mfrow=c(1,2))
-# plot(beta[-1], result$mubeta.q[-1])
-# plot(u, result$muu.q)
