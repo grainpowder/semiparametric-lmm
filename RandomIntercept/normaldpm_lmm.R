@@ -69,7 +69,7 @@ normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
     
     # sigma
     ssterm = sum((y - W%*%mubeta.q - Z%*%muu.q)^2)
-    trterm1 = sum(diag(WtW %*% mubeta.q))
+    trterm1 = sum(diag(WtW %*% sigbeta.q))
     trterm2 = sum(ti * sigu.q)
     bsigtl = bsig + 0.5*(ssterm+trterm1+trterm2)
     sig.ratio = asigtl / bsigtl

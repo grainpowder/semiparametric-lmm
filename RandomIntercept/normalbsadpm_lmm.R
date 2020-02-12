@@ -57,7 +57,7 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
   blamtls = rep(blam, R)
   lam.ratio = alamtls / blamtls
   # Level3 or above
-  gam1s = gam2s = rep(0.1, R)
+  gam1s = gam2s = rep(0.1, R-1)
   alp.ratio = aalp / balp
   tau.ratio = atau / btau
   # nonparametric
@@ -74,7 +74,6 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
   # Define predetermined values
   sb0i = solve(sigbeta.0)
   sb0imb0 = sb0i %*% mubeta.0
-  asigtl = asig + (N*T/2)
   aalptl = aalp + R - 1
   # Function to use during iteration
   numreplace = function(x, tol=1e-10) {x[x<tol] = tol; x} # function to replace value(s) less than 1e-10 to 1e-10
@@ -84,11 +83,12 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
   {
     mubeta.q.old = mubeta.q
     muu.q.old = muu.q
+    mutheta.q.old = mutheta.q
     
     # Determine J and corresponding values
     J = min(floor(-15/(-0.5*mupsi.q)),Jfull)    
     mutheta.q.old = mutheta.q[1:J]
-    asigtl = asig+0.5*(N*T+J)
+    asigtl = asig+0.5*(T+J)
     atautl = atau+0.5*J
     bindices = (1:J)
     bindices2= bindices^2
@@ -160,7 +160,7 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
     
     # sigma
     ssterm = sum((y-W%*%mubeta.q-Z%*%muu.q-vphi%*%mutheta.q)^2)
-    trterm1 = sum(diag(WtW%*%mubeta.q))
+    trterm1 = sum(diag(WtW%*%sigbeta.q))
     trterm2 = sum(ti*sigu.q)
     trterm3 = sum(diag(vphitvphi%*%sigtheta.q))
     trterm4 = sum(diag((outer(mutheta.q, mutheta.q)+sigtheta.q)%*%DQvec))
@@ -199,9 +199,9 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
     # Convergence
     convergence1 = sum((mubeta.q - mubeta.q.old)^2) < tol
     convergence2 = sum((muu.q - muu.q.old)^2) < tol
-    if (convergence1 & convergence2) break
+    convergence3 = sum((mutheta.q - mutheta.q.old)^2) < tol
+    if (convergence1 & convergence2 & convergence3) break
   }
-  browser()
   post_curve = drop(vphi%*%mutheta.q)
   curve_var = drop(vphi^2%*%diag(sigtheta.q))
   return(list(
@@ -214,31 +214,3 @@ normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
     kappa=kappa
   ))
 }
-
-# simulation
-source("../misc/make_Z.R")
-N = 50; T = 4; D = 5
-Z = make_Z(rep(T, N))
-set.seed(10)
-beta = rnorm(D+1)
-w = matrix(rnorm(N*T*D), N*T, D)
-f = function(x) -3*(x-1.5)^2
-x = 3*runif(N*T); ord = order(x)
-assigner = runif(N)
-mu1 = 2; mu2 = -2
-u = rnorm(N, mu1)
-u[assigner > 0.5] = rnorm(sum(assigner > 0.5), mu2)
-y = cbind(1, w)%*%beta + Z%*%u + f(x) + rnorm(nrow(Z))
-result = normalbsadpm_lmm(y,x,w,Z,10,20)
-par(mfrow=c(1,2))
-plot(beta[-1], result$mubeta.q[-1])
-lines(-5:5,-5:5)
-plot(u, result$muu.q)
-lines(-5:5,-5:5)
-
-res = y-(cbind(1,w)%*%result$mubeta.q-Z%*%result$muu.q)
-par(mar=c(4,2,2,1),mfrow=c(1,1))
-plot(x,res, main="Fitted mean curve and 95% credible region", ylab="")
-lines(x[ord],result$post_curve[ord],lwd=3,col=3)
-lines(x[ord],result$post_upper[ord],lwd=2,lty=2)
-lines(x[ord],result$post_lower[ord],lwd=2,lty=2)
