@@ -51,21 +51,21 @@ wandint = function(f,h,log.value=TRUE,threshold=1e-12,shrink_a=1e-4)
     return(I1 - k*I2)
   }
 }
-
-# Test on the accuracy of wandint function
-mom0 = function(x) x-x+1
-logx = function(x) log(x)
-mom1 = function(x) x
-mom2 = function(x) x^2
-
-# On gamma distribution
-alpha = 1.1; beta = 0.3 # integration w.r.t. p.d.f. returns NA/NaN error when alpha, beta < 1.
-kern = function (x) (alpha-1)*log(x)-beta*x
-lnC = wandint(mom0,kern)
-result_logx = exp(wandint(logx,kern)-lnC)
-result_mean = exp(wandint(mom1,kern)-lnC)
-result_var = exp(wandint(mom2,kern)-lnC) - result_mean^2
-data.frame(true=c(-log(beta)+digamma(alpha), alpha/beta, alpha/(beta^2)), 
-           wandint=c(result_int, result_mean, result_var),
-           row.names = c("logx", "mean", "variance"))
-
+# 
+# # Test on the accuracy of wandint function
+# mom0 = function(x) x-x+1
+# logx = function(x) log(x)
+# mom1 = function(x) x
+# mom2 = function(x) x^2
+# 
+# # On gamma distribution
+# alpha = 1.1; beta = 0.3 # integration w.r.t. p.d.f. returns NA/NaN error when alpha, beta < 1.
+# kern = function (x) (alpha-1)*log(x)-beta*x
+# lnC = wandint(mom0,kern)
+# result_logx = exp(wandint(logx,kern)-lnC)
+# result_mean = exp(wandint(mom1,kern)-lnC)
+# result_var = exp(wandint(mom2,kern)-lnC) - result_mean^2
+# data.frame(true=c(-log(beta)+digamma(alpha), alpha/beta, alpha/(beta^2)), 
+#            wandint=c(result_logx, result_mean, result_var),
+#            row.names = c("logx", "mean", "variance"))
+# 
