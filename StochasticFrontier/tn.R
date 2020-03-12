@@ -136,25 +136,3 @@ tn = function(y, w, Z, productivity=TRUE, prior=NULL, tol=1e-2, eps=1e-6, maxite
     asigtl=asigtl, bsigtl=bsigtl
   ))
 }
-
-source("../misc/make_Z.R")
-library(truncnorm)
-set.seed(10)
-N = 50
-Z = make_Z(rep(4, N))
-D = 10
-w = matrix(rnorm(D*nrow(Z)), ncol=D)
-u = rtruncnorm(N, a=0, mean=1)
-beta = rnorm(D+1)
-y = cbind(1, w)%*%beta + ((-1)^TRUE)*Z%*%u + rnorm(nrow(Z))
-result = tn(y,w,Z)
-
-plot(beta,result$mubeta.q)
-lines(-10:10,-10:10)
-plot(u,result$muu.q)
-lines(-10:10,-10:10)
-upper = qtruncnorm(0.975,a=0,mean=result$muu.q, sd=sqrt(result$sigu.q))
-lower = qtruncnorm(0.025,a=0,mean=result$muu.q, sd=sqrt(result$sigu.q))
-plot(1:N, u,xlab="idx",ylab="",pch=19,ylim=c(0,max(upper)),col=2,main="True values and corresponding 95% Credible interval\n(griddy Gibbs)")
-for (idx in 1:N) lines(c(idx,idx), c(upper[idx],lower[idx]))
-points(1:N, result$muu.q, pch=19)
