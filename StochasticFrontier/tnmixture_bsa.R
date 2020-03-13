@@ -256,33 +256,3 @@ tnmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
     post_curve=post_curve
   ))
 }
-
-# Simulation
-library(truncnorm)
-source("../misc/make_Z.R")
-set.seed(10)
-D = 10
-N = 50
-ti = rep(4, N)
-Z = make_Z(ti)
-w = matrix(rnorm(D*nrow(Z)), ncol=D)
-u = runif(N) * 3
-beta = rnorm(D+1)
-f = function(x) -3*(x-1.5)^4
-x = 3*runif(nrow(Z)); ord = order(x)
-sgn = (-1)^TRUE
-y = cbind(1,w)%*%beta + sgn*Z%*%u + f(x) + rnorm(nrow(Z))
-result = tnmixture_bsa(y,x,w,Z,20,eps=0.00001)
-plot(beta[-1],result$mubeta.q[-1],xlab="True",ylab="Estimated",main="Fixed Effects")
-lines(-10:10,-10:10)
-upper = qtruncnorm(0.975,a=0,mean=result$muu.q, sd=sqrt(result$sigu.q))
-lower = qtruncnorm(0.025,a=0,mean=result$muu.q, sd=sqrt(result$sigu.q))
-plot(1:N, u,xlab="idx",ylab="",pch=19,ylim=c(0,max(c(upper, u))),col=2,main="True values and corresponding 95% Credible interval\n(Truncated Normal)")
-for (idx in 1:N) lines(c(idx,idx), c(upper[idx],lower[idx]))
-points(1:N, result$muu.q, pch=19)
-par(mfrow=c(1,1))
-res = y-(cbind(1,w)%*%result$mubeta.q - Z%*%result$muu.q)
-plot(x,res, main="Fitted mean curve(BSA-LMM)", ylab="")
-lines(x[ord],result$post_curve[ord],lwd=3,col=3)
-lines(x[ord],result$post_lower[ord],lwd=2,lty=2)
-lines(x[ord],result$post_upper[ord],lwd=2,lty=2)

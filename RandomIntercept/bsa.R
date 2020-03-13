@@ -1,4 +1,4 @@
-normalbsa_lmm = function(y,x,w,Z,J,prior=NULL,maxiter=500,tol=1e-5){
+bsa = function(y,x,w,Z,J,prior=NULL,maxiter=500,tol=1e-5){
   # Pre-calculate objects to be used frequently
   N = nrow(w)
   D = ncol(w)

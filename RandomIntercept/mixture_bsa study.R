@@ -1,4 +1,4 @@
-source("normalbsadpm_lmm.R")
+source("../RandomIntercept/mixture_bsa.R")
 source("../misc/make_Z.R")
 
 
@@ -25,7 +25,7 @@ y = cbind(1, w)%*%beta + Z%*%u + f(x) + rnorm(nrow(Z))
 # Estimation --------------------------------------------------------------
 # Result emitting
 start = as.numeric(Sys.time())
-result = normalbsadpm_lmm(y,x,w,Z,23,R) # truncate at R=10
+result = mixture_bsa(y,x,w,Z,23,R) # truncate at R=10
 print(paste(round(as.numeric(Sys.time())-start, 4), "seconds elapsed."))
 
 # Visualizing the result --------------------------------------------------
@@ -56,10 +56,11 @@ for (idx in 1:N) lines(c(idx,idx), c(upper[u_ord][idx],lower[u_ord][idx]))
 # Nonparametric
 # Manually exported as 600 * 400 in png type
 par(mfrow=c(1,1))
-res = y-(cbind(1,w)%*%result$mubeta.q - Z%*%result$muu.q)
+res = y-(cbind(1,w)%*%result$mubeta.q + Z%*%result$muu.q)
 plot(x,res, main="Fitted mean curve", ylab="")
 lines(x[ord],result$post_curve[ord],lwd=3,col=2)
-
+lines(x[ord],result$post_upper[ord],lwd=2,lty=2)
+lines(x[ord],result$post_lower[ord],lwd=2,lty=2)
 
 # Cadmium -----------------------------------------------------------------
 library(bspmmGP)
@@ -92,7 +93,7 @@ for(idx in 1:length(label)) Z[which(study==label[idx]),idx] = 1
 
 # Emitting result
 start = as.numeric(Sys.time())
-vbresult_dpm = normalbsadpm_lmm(y,x,w,Z,30,10)
+vbresult_dpm = mixture_bsa(y,x,w,Z,30,10)
 print(paste("VB", round(as.numeric(Sys.time()) - start, 3), "seconds elapsed"))
 
 

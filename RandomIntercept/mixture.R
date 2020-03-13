@@ -1,4 +1,4 @@
-normaldpm_lmm = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
+mixture = function(y,w,Z,R,prior=NULL,maxiter=500,tol=1e-5)
 {
   D = ncol(w)
   W = cbind(1, w)

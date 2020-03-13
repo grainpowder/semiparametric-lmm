@@ -1,4 +1,4 @@
-normalbsadpm_lmm = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
+mixture_bsa = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
 {
   D = ncol(w)
   W = cbind(1, w)
