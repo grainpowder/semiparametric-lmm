@@ -1,17 +1,19 @@
-source("../RandomIntercept/mixture_bsa.R")
+source("../RandomIntercept/normal.R")
 source("../misc/make_Z.R")
+library(ggplot2)
+library(gridExtra)
 
 
-# Data  generation --------------------------------------------------------
+# Simulation Study --------------------------------------------------------
 # Simulation size setting
-set.seed(10); R = 10 # R : Truncation level
+set.seed(20); R = 10 # R : Truncation level
 N = 50; T = 4; D = 8
 Z = make_Z(rep(T, N))
 
 # Data generation
 beta = rnorm(D+1)
 w = matrix(rnorm(N*T*D), N*T, D)
-f = function(x) -3*(x-1.5)^6
+f = function(x) 2*x*sin(pi*x)
 x = 3*runif(N*T); ord = order(x)
 mu1 = 3; mu2 = 0; mu3 = -3
 # Represent random intercept as mixture of 3 normal distributions
@@ -22,45 +24,65 @@ u[assigner > 0.33] = rnorm(sum(assigner > 0.33), mu2, 0.49)
 u[assigner > 0.66] = rnorm(sum(assigner > 0.66), mu3, 0.49)
 y = cbind(1, w)%*%beta + Z%*%u + f(x) + rnorm(nrow(Z))
 
-# Estimation --------------------------------------------------------------
-# Result emitting
+# Estimation
 start = as.numeric(Sys.time())
-result = mixture_bsa(y,x,w,Z,23,R) # truncate at R=10
+result = mixture_bsa(y,x,w,Z,23,R,tol=1e-6) # truncate at R=10
 print(paste(round(as.numeric(Sys.time())-start, 4), "seconds elapsed."))
 
-# Visualizing the result --------------------------------------------------
-# Manually exported as 800 * 320 in png type
-par(mar=c(4,3,2,1), mfrow=c(1,2))
-# Fixed effect
+# Result visualization
+# Fixed effect(black point: true value, golden line: corresponding 95% credible interval)
 beta_ord = order(beta[-1])
-upper = qnorm(0.975,mean=result$mubeta.q[-1], sd=sqrt(diag(result$sigbeta.q)[-1]))
-lower = qnorm(0.025,mean=result$mubeta.q[-1], sd=sqrt(diag(result$sigbeta.q)[-1]))
-plot(1:D, beta[-1][beta_ord],
-     xlab="index",ylab="",
-     ylim=c(min(c(lower, beta)),max(c(upper, beta))),
-     pch=19, col=2,
-     main="Fixed effect")
-for (idx in 1:N) lines(c(idx,idx), c(upper[beta_ord][idx],lower[beta_ord][idx]))
+ggdata = data.frame(
+  upper = qnorm(0.975,mean=result$mubeta.q[-1], sd=sqrt(diag(result$sigbeta.q)[-1]))[beta_ord],
+  lower = qnorm(0.025,mean=result$mubeta.q[-1], sd=sqrt(diag(result$sigbeta.q)[-1]))[beta_ord],
+  beta = beta[-1][beta_ord],
+  index = 1:D)
+fe = ggplot() +
+  geom_errorbar(data=ggdata, aes(x=index, ymin=lower, ymax=upper), size=1.1, color="darkorange3", width=0.3) +
+  geom_point(data=ggdata, aes(x=index, y=beta), size=1.1) +
+  theme_bw() +
+  xlab("Arranged index") +
+  ylab("") +
+  ggtitle("Fixed effects")
 
-# Random effect
+# Random effect(black point: true value, golden line: corresponding 95% credible interval)
 u_ord = order(u)
-upper = qnorm(0.975,mean=result$muu.q, sd=sqrt(result$sigu.q))
-lower = qnorm(0.025,mean=result$muu.q, sd=sqrt(result$sigu.q))
-plot(1:N, u[u_ord],
-     xlab="index",ylab="",
-     ylim=c(min(c(lower, u)),max(c(upper, u))),
-     pch=19, col=2,
-     main="Random effect")
-for (idx in 1:N) lines(c(idx,idx), c(upper[u_ord][idx],lower[u_ord][idx]))
+ggdata = data.frame(
+  upper = qnorm(0.975,mean=result$muu.q, sd=sqrt(result$sigu.q))[u_ord],
+  lower = qnorm(0.025,mean=result$muu.q, sd=sqrt(result$sigu.q))[u_ord],
+  u = u[u_ord],
+  index = 1:N)
+re = ggplot() +
+  geom_errorbar(data=ggdata, aes(x=index, ymin=lower, ymax=upper), size=1.1, color="darkorange3", width=0.3) +
+  geom_point(data=ggdata, aes(x=index, y=u), size=1.1) +
+  theme_bw() +
+  xlab("Arranged index") +
+  ylab("") +
+  ggtitle("Random effects")
 
-# Nonparametric
-# Manually exported as 600 * 400 in png type
-par(mfrow=c(1,1))
-res = y-(cbind(1,w)%*%result$mubeta.q + Z%*%result$muu.q)
-plot(x,res, main="Fitted mean curve", ylab="")
-lines(x[ord],result$post_curve[ord],lwd=3,col=2)
-lines(x[ord],result$post_upper[ord],lwd=2,lty=2)
-lines(x[ord],result$post_lower[ord],lwd=2,lty=2)
+# Nonparametric(black point: residual, golden line: mean curve)
+vb_polygon = data.frame(
+  variate = c(x[ord], rev(x[ord])),
+  area = c(result$post_upper[ord], rev(result$post_lower[ord])))
+residual = data.frame(
+  variate = x,
+  residual = y-(cbind(1,w)%*%result$mubeta.q + Z%*%result$muu.q))
+mc = ggplot() +
+  geom_point(data=residual,
+             mapping=aes(x=variate,y=residual),size=1.1) +
+  geom_polygon(data=vb_polygon,aes(x=variate,y=area), fill="darkorange3", alpha=0.3) +
+  geom_line(data=data.frame(x=x[ord], y=result$post_curve[ord]),
+            mapping=aes(x=x,y=y),color="darkorange3",size=1.1) +
+  xlab("Nonparametric variate")+
+  ylab("Residuals")+
+  theme_bw() +
+  ggtitle("Mean curve")
+
+# Export
+png("./figures/simulation.png",width=900,height=320)
+grid.arrange(fe, re, mc, nrow=1)
+dev.off()
+
 
 # Cadmium -----------------------------------------------------------------
 library(bspmmGP)
@@ -80,7 +102,7 @@ y = log(cadmium$b2_GM)
 x = log(cadmium$Ucd_GM)
 
 
-# Cadmium: VB -------------------------------------------------------------
+# VB estimation
 # sort the data w.r.t. studycode, to make correspondence with MCMC
 cadmium_bind = cbind.data.frame(study,w,y,x) %>% arrange(study)
 study = cadmium_bind$study
@@ -97,7 +119,7 @@ vbresult_dpm = mixture_bsa(y,x,w,Z,30,10)
 print(paste("VB", round(as.numeric(Sys.time()) - start, 3), "seconds elapsed"))
 
 
-# Cadmium: MCMC -----------------------------------------------------------
+# MCMC estimation
 study = cadmium$studycode   # study code
 ustudy = names(table(study))
 wdata = cbind(ifelse(cadmium$ethnicity == 1, 1, 0),
@@ -145,11 +167,10 @@ random = data.frame(
 )
 
 # Fixed effects
-pdf("./figures/NormalDPM/cadmium_fixed.pdf")
-ggplot(fixed, aes(x=names, y=mean, color=method)) + 
+fe = ggplot(fixed, aes(x=names, y=mean, color=method)) + 
   geom_errorbar(data=fixed, mapping=aes(ymin=lower, ymax=upper), position="dodge") +
-  geom_point(position=position_dodge(width=0.9), size=2) +
-  scale_color_manual(values=c("blue","red")) +
+  geom_point(position=position_dodge(width=0.9), size=1.6) +
+  scale_color_manual(values=c("deepskyblue4","darkorange3")) +
   scale_x_discrete(
     breaks=c("male","female","age>=50","asian","intercept"),
     labels=c("male","female",TeX("$age\\geq 50$"),"asian","intercept")) +
@@ -158,15 +179,17 @@ ggplot(fixed, aes(x=names, y=mean, color=method)) +
   theme_bw() +
   theme(panel.grid.major.y = element_blank(),
         panel.grid.minor = element_blank(),
-        axis.text = element_text(size=11))
-dev.off()
+        axis.text = element_text(size=11),
+        panel.grid = element_blank(),
+        legend.position = c(0.83,0.15)) +
+  ggtitle("Fixed effects")
 
 # Random effects
-pdf("./figures/NormalDPM/cadmium_random.pdf")
-ggplot(random, aes(x=MCMC, y=VB)) +
+re = ggplot(random, aes(x=MCMC, y=VB)) +
   geom_point() +
   geom_abline(slope=1, intercept=0) +
-  theme_classic()
+  theme_classic() +
+  ggtitle("Random effects")
 dev.off()
 
 
@@ -182,19 +205,26 @@ residual = data.frame(
   variate=rep(x,2),
   residual=c(unlist(y)-ffitr_dpm$wbeta$mean-ffitr_dpm$bhat$mean[studyId],
              y-cbind(1,w)%*%vbresult_dpm$mubeta.q-Z%*%vbresult_dpm$muu.q),
-  type=rep(c("MCMC","VB"),each=length(x)))
-pdf("./figures/NormalDPM/cadmium_curve.pdf")
-ggplot() +
+  method=rep(c("MCMC","VB"),each=length(x)))
+pdf("./figures/cadmium_curve.pdf")
+mc = ggplot() +
   geom_point(data=residual,
-             mapping=aes(x=variate,y=residual,color=type,shape=type)) +
-  scale_color_manual(values=c("blue","red"))+
-  geom_polygon(data=mcmc_polygon,aes(x=variate,y=area), fill="blue", alpha=0.3) +
-  geom_polygon(data=vb_polygon,aes(x=variate,y=area), fill="red", alpha=0.3) +
+             mapping=aes(x=variate,y=residual,color=method,shape=method)) +
+  scale_color_manual(values=c("deepskyblue4","darkorange3"))+
+  geom_polygon(data=mcmc_polygon,aes(x=variate,y=area), fill="deepskyblue4", alpha=0.3) +
+  geom_polygon(data=vb_polygon,aes(x=variate,y=area), fill="darkorange3", alpha=0.3) +
   geom_line(data=data.frame(x=ffitr_dpm$xgrid, y=ffitr_dpm$fxgrid$mean),
-            mapping=aes(x=x,y=y),color="blue",size=1.5) +
+            mapping=aes(x=x,y=y),color="deepskyblue4",size=1.5) +
   geom_line(data=data.frame(x=x[ord], y=vbresult_dpm$post_curve[ord]),
-            mapping=aes(x=x,y=y),color="red",size=1.5) +
+            mapping=aes(x=x,y=y),color="darkorange3",size=1.5) +
   xlab("Nonparametric variate")+
   ylab("Residuals")+
-  theme_bw()
+  theme_bw()+
+  ggtitle("Mean curve") +
+  theme(legend.position = c(0.15,0.85),
+        panel.grid = element_blank())
+
+# Export
+png("./figures/cadmium.png",width=900,height=320)
+grid.arrange(fe, re, mc, nrow=1)
 dev.off()
