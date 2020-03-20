@@ -1,4 +1,4 @@
-source("../StochasticFrontier/exmixture_bsa.R")
+source("../StochasticFrontier/ex.R")
 source("../misc/make_Z.R")
 library(matrixStats)
 library(truncnorm)

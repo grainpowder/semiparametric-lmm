@@ -1,4 +1,4 @@
-source("../StochasticFrontier/tnmixture_bsa.R")
+source("../StochasticFrontier/tn.R")
 source("../misc/make_Z.R")
 library(matrixStats)
 library(truncnorm)
@@ -49,7 +49,10 @@ for (idx in 1:N) lines(c(idx,idx), c(upper[beta_ord][idx],lower[beta_ord][idx]))
 u_ord = order(u)
 upper = qtruncnorm(0.975,a=0,mean=result$muu.q, sd=sqrt(result$sigu.q))
 lower = qtruncnorm(0.025,a=0,mean=result$muu.q, sd=sqrt(result$sigu.q))
-plot(1:N, u[u_ord],xlab="idx",ylab="",pch=19,ylim=c(min(c(0,lower,u)),max(c(upper, u))),col=2,main="True values and corresponding 95% Credible interval\n(Truncated Normal)")
+plot(1:N, u[u_ord],xlab="idx",ylab="",
+     pch=19,col=2,
+     ylim=c(min(c(0,lower,u)),max(c(upper, u))),
+     main="Random Effect(Inefficiency)")
 for (idx in 1:N) lines(c(idx,idx), c(upper[u_ord][idx],lower[u_ord][idx]))
 
 # Nonparametric
