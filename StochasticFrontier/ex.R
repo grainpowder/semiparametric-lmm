@@ -175,19 +175,6 @@ ex_bsa = function(y, x, w, Z, J, productivity=TRUE, prior=NULL, maxiter=500, tol
     vphitvphi = vphitvphifull[1:J,1:J]
     
     # Update variational distribution parameters for 
-    # theta
-    term1 = exp(sig2psi.q*bindices2/2+mupsi.q*bindices)
-    term2 = exp(sig2psi.q*bindices2/2-mupsi.q*bindices)
-    sigpsi.q = sqrt(sig2psi.q)
-    Qvec = term1*(1-pnorm(-mupsi.q/sigpsi.q-sigpsi.q*bindices))
-    Qvec = Qvec+term2*(1-pnorm(mupsi.q/sigpsi.q-sigpsi.q*bindices))
-    DQvec = diag(Qvec)
-    
-    sigtheta.q = sig.ratio*(tau.ratio*DQvec+vphitvphi)
-    sigtheta.q = solve(sigtheta.q)
-    mutheta.q = sig.ratio*sigtheta.q%*%t(vphi)%*%(y-W%*%mubeta.q-sgn*Z%*%muu.q)
-    mutheta.q = drop(mutheta.q)
-    
     # beta
     sigbeta.q = solve(sb0i+sig.ratio*WtW)
     mubeta.q = sigbeta.q%*%(sbimb0+sig.ratio*t(W)%*%(y-sgn*Z%*%muu.q-vphi%*%mutheta.q))
@@ -206,6 +193,19 @@ ex_bsa = function(y, x, w, Z, J, productivity=TRUE, prior=NULL, maxiter=500, tol
     # lambda
     blamtl = blam+sum(muu.q)
     lam.ratio = alamtl/blamtl
+    
+    # theta
+    term1 = exp(sig2psi.q*bindices2/2+mupsi.q*bindices)
+    term2 = exp(sig2psi.q*bindices2/2-mupsi.q*bindices)
+    sigpsi.q = sqrt(sig2psi.q)
+    Qvec = term1*(1-pnorm(-mupsi.q/sigpsi.q-sigpsi.q*bindices))
+    Qvec = Qvec+term2*(1-pnorm(mupsi.q/sigpsi.q-sigpsi.q*bindices))
+    DQvec = diag(Qvec)
+    
+    sigtheta.q = sig.ratio*(tau.ratio*DQvec+vphitvphi)
+    sigtheta.q = solve(sigtheta.q)
+    mutheta.q = sig.ratio*sigtheta.q%*%t(vphi)%*%(y-W%*%mubeta.q-sgn*Z%*%muu.q)
+    mutheta.q = drop(mutheta.q)
     
     # sigma
     ssterm = sum((y-W%*%mubeta.q-sgn*Z%*%muu.q-vphi%*%mutheta.q)^2)
