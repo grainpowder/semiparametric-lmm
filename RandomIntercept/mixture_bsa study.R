@@ -213,7 +213,7 @@ mc = ggplot() +
             mapping=aes(x=x,y=y),color="deepskyblue4",size=1.5) +
   geom_line(data=data.frame(x=x[ord], y=vbresult_dpm$post_curve[ord]),
             mapping=aes(x=x,y=y),color="darkorange3",size=1.5) +
-  xlab("Ucd_GM")+
+  xlab("ln(Ucd_GM)")+
   ylab("Residuals")+
   theme_bw()+
   ggtitle("Mean curve") +
