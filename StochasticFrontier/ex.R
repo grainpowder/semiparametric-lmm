@@ -108,7 +108,7 @@ ex_bsa = function(y, x, w, Z, J, productivity=TRUE, prior=NULL, maxiter=500, tol
   {
     mubeta.0 = rep(0, D+1)
     sigbeta.0 = diag(rep(100, D+1))
-    alam = blam = asig = bsig = atau = btau = 1e-2 
+    alam = blam = asig = bsig = atau = btau = 1e-2
     w0 = 2
     mupsi.q.start = 1
   }
@@ -462,9 +462,8 @@ exmixture = function(y, w, Z, R=10, productivity=TRUE, prior=NULL, maxiter=500, 
 
 # BSA: Exponential mixture inefficiency -----------------------------------
 
-exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, maxiter=500, eps=1e-4)
+exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, maxiter=500, tol=1e-4)
 {
-  library(matrixStats)
   sgn = (-1)^productivity
   N = ncol(Z)
   D = ncol(w)
@@ -476,6 +475,7 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
   maxx = max(x)
   if(minx < 0 | maxx > 1) x = (x-minx)/(maxx-minx)
   
+  # Hyperparameters
   # Hyperparameters
   if (is.null(prior))
   {
@@ -502,12 +502,11 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
   }
   sb0i = solve(sigbeta.0)
   sbimb0 = sb0i %*% mubeta.0
-  aalptl = aalp + R - 1
-  asigtl = asig + 0.5*(sum(ti))
+  ldetsb0 = determinant(sigbeta.0, logarithm=TRUE)$modulus
   
   # Initialize parameters
+  # Parametric
   # Level1
-  mubeta.q = rep(0, D+1)
   muu.q = rep(0, N)
   sig.ratio = asig / bsig
   # Level2
@@ -516,6 +515,7 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
   lam.ratio = rep(alam/blam, R)
   tau.ratio = atau / btau
   # Level3 or above
+  aalptl = aalp + R - 1
   gam1s = rep(0.01, R-1)
   gam2s = rep(0.01, R-1)
   alp.ratio = aalp / balp
@@ -534,12 +534,14 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
   vphi = vphifull[,1:J]
   vphitvphi = vphitvphifull[1:J,1:J]
   
+  # ELBO calculation setting
+  lbold = -Inf
+  dif = tol+1
+  lb = c()
+  
   # Update as
   for (iter in 1:maxiter)
   {
-    mubeta.q.old = mubeta.q
-    muu.q.old = muu.q
-    
     # Determine J and corresponding values
     J = min(floor(-15/(-0.5*mupsi.q)),Jfull)    
     mutheta.q.old = mutheta.q[1:J]
@@ -554,19 +556,6 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
     vphitvphi = vphitvphifull[1:J,1:J]
     
     # Update variational distribution parameters for 
-    # theta
-    term1 = exp(sig2psi.q*bindices2/2 + mupsi.q*bindices)
-    term2 = exp(sig2psi.q*bindices2/2 - mupsi.q*bindices)
-    sigpsi.q = sqrt(sig2psi.q)
-    Qvec = term1 * (1-pnorm(-mupsi.q/sigpsi.q-sigpsi.q*bindices))
-    Qvec = Qvec + term2 * (1-pnorm(mupsi.q/sigpsi.q-sigpsi.q*bindices))
-    DQvec = diag(Qvec)
-    
-    sigtheta.q = sig.ratio * (tau.ratio*DQvec+vphitvphi)
-    sigtheta.q = solve(sigtheta.q)
-    mutheta.q = sig.ratio * sigtheta.q %*% t(vphi) %*% (y-W%*%mubeta.q-sgn*Z%*%muu.q)
-    mutheta.q = drop(mutheta.q)
-    
     # beta
     sigbeta.q = solve(sb0i+sig.ratio*WtW)
     mubeta.q = sigbeta.q %*% (sbimb0 + sig.ratio*t(W)%*%(y-sgn*Z%*%muu.q-vphi%*%mutheta.q))
@@ -588,7 +577,7 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
     
     # kappa
     S = outer(muu.q, lam.ratio, times)
-    S = t(qstick - log(blamtl) + digamma(alamtl) + t(S))
+    S = t(qstick - log(blamtl) + digamma(alamtl) - t(S))
     kappa = exp(kappa - rowLogSumExps(kappa))
     kappa_r = apply(kappa, 2, sum)
     
@@ -605,6 +594,19 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
     balptl = balp - sum(digamma(gam2s)-digamma(gam1s+gam2s))
     alp.ratio = aalptl / balptl
     
+    # theta
+    term1 = exp(sig2psi.q*bindices2/2 + mupsi.q*bindices)
+    term2 = exp(sig2psi.q*bindices2/2 - mupsi.q*bindices)
+    sigpsi.q = sqrt(sig2psi.q)
+    Qvec = term1 * (1-pnorm(-mupsi.q/sigpsi.q-sigpsi.q*bindices))
+    Qvec = Qvec + term2 * (1-pnorm(mupsi.q/sigpsi.q-sigpsi.q*bindices))
+    DQvec = diag(Qvec)
+    
+    sigtheta.q = sig.ratio * (tau.ratio*DQvec+vphitvphi)
+    sigtheta.q = solve(sigtheta.q)
+    mutheta.q = sig.ratio * sigtheta.q %*% t(vphi) %*% (y-W%*%mubeta.q-sgn*Z%*%muu.q)
+    mutheta.q = drop(mutheta.q)
+    
     # sigma
     ssterm = sum((y-W%*%mubeta.q-sgn*Z%*%muu.q-vphi%*%mutheta.q)^2)
     trterm1 = sum(diag(WtW %*% sigbeta.q))
@@ -618,7 +620,52 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
     btautl = btau + 0.5*(sig.ratio*trterm4)
     tau.ratio = atautl / btautl
     
-    # psi(NCVMP)
+    # ELBO calculation(before NCVMP)
+    lbnew = 0
+    sigpsi.q = sqrt(sig2psi.q)
+    mu2psi.q = mupsi.q^2
+    const1 = sqrt(2/pi)
+    lntau = log(btautl) - digamma(atautl)
+    lnsig = log(bsigtl) - digamma(asigtl)
+    lnalp = -log(balptl) + digamma(aalptl)
+    lnlam = -log(blamtl) + digamma(alamtl)
+    # likelihood
+    lbnew = lbnew - (sum(ti)/2*log(2*pi)) - (sum(ti)/2)*lnsig - sig.ratio*(ssterm+trterm1+trterm2+trterm3)/2
+    # beta
+    lbnew = lbnew - (ldetsb0 - determinant(sigbeta.q,logarithm=TRUE)$modulus)/2 - (sum((mubeta.q-mubeta.0)*solve(sigbeta.0,mubeta.q-mubeta.0))+sum(diag(solve(sigbeta.0,sigbeta.q)))-(D+1))/2
+    # inefficiency
+    cpterms = apply(t(t(kappa)*lnlam)-kappa*outer(muu.q,lam.ratio,times), 1, sum)
+    lbnew = lbnew + sum(cpterms + 0.5*(log(sigu.q)+log(2*pi)+1) + log(1-pnorm(0,muu.q,sqrt(sigu.q))))
+    # lambda
+    individual = (-lgamma(alam)+lgamma(alamtl)) + alam*log(blam)-alamtl*log(blamtl) + lnlam*(alam-alamtl) - lam.ratio*(blam-blamtl)
+    lbnew = lbnew + sum(individual)
+    # kappa
+    lbnew = lbnew + sum(t(t(kappa)*qstick) - kappa*log(kappa))
+    # Stick length
+    logstick = digamma(gam1s) - digamma(gam1s+gam2s)
+    log1mstick = digamma(gam2s) - digamma(gam1s+gam2s)
+    individual = lnalp + (alp.ratio-1)*log1mstick - lgamma(gam1s+gam2s)+(lgamma(gam1s)+lgamma(gam2s)) - (gam1s-1)*logstick - (gam2s-1)*log1mstick
+    lbnew = lbnew + sum(individual)
+    # alpha
+    lbnew = lbnew + (-lgamma(aalp)+lgamma(aalptl)) + aalp*log(balp)-aalptl*log(balptl) + lnalp*(aalp-aalptl) - alp.ratio*(balp-balptl)
+    # theta
+    lbnew = lbnew - J*lnsig/2 - J*lntau/2 - sig.ratio*tau.ratio*trterm4/2 + determinant(sigtheta.q,logarithm=TRUE)$modulus/2 + J/2
+    # sigma
+    lbnew = lbnew + (-lgamma(asig)+lgamma(asigtl)) + asig*log(bsig)-asigtl*log(bsigtl) - lnsig*(asig-asigtl) - sig.ratio*(bsig-bsigtl)
+    # tau
+    lbnew = lbnew + (-lgamma(atau)+lgamma(atautl)) + atau*log(btau)-atautl*log(btautl) - lntau*(atau-atautl) - tau.ratio*(btau-btautl)
+    # psi(tentative)
+    lbnew.wopsibits = lbnew
+    lbnew = lbnew + 0.5 * (log(2*pi)+log(sig2psi.q)+1)
+    S1 =  -w0 * (sigpsi.q*const1*exp(-mu2psi.q/(2*sig2psi.q)) + mupsi.q*(1-2*pnorm(-mupsi.q/sigpsi.q)))
+    lbnew = lbnew + T*(T+1)/4 * (sigpsi.q*const1*exp(-mu2psi.q/(2*sig2psi.q))+mupsi.q*(1-2*pnorm(-mupsi.q/sigpsi.q)))
+    Qvec = term1*(1-pnorm(-mupsi.q/sigpsi.q-sigpsi.q*bindices))
+    Qvec = Qvec+term2*(1-pnorm(mupsi.q/sigpsi.q-sigpsi.q*bindices)) 
+    lbnew = lbnew - 0.5*tau.ratio*sig.ratio*sum(diag((sigtheta.q+outer(mutheta.q,mutheta.q))%*%diag(Qvec)))
+    lbnew = lbnew + log(w0/2) + S1
+    lbfull = lbnew
+    
+    # NCVMP
     sig3psi.q = sigpsi.q^3
     sig4psi.q = sigpsi.q^4
     mu2psi.q = mupsi.q^2
@@ -636,21 +683,67 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
     term7 = 1-pnorm(-mupsi.q/sigpsi.q-sigpsi.q*bindices)
     term8 = 1-pnorm(mupsi.q/sigpsi.q-sigpsi.q*bindices)
     DQmu = term1*term5*1/sigpsi.q+bindices*term1*term7-term2*term6*1/sigpsi.q-bindices*term2*term8    
-    DQsig =  -term1*term5*term3+bindices2/2*term1*term7+term2*term6*term4+bindices2/2*term2*term8    
-    pd2sig =  mfactor*pd1sig-0.5*sig.ratio*tau.ratio*sum((diag(sigtheta.q)+mutheta.q^2)*DQsig)
-    pd2mu =  mfactor*pd1mu-0.5*sig.ratio*tau.ratio*sum((diag(sigtheta.q)+mutheta.q^2)*DQmu)
+    DQsig = -term1*term5*term3+bindices2/2*term1*term7+term2*term6*term4+bindices2/2*term2*term8    
+    pd2sig = mfactor*pd1sig-0.5*sig.ratio*tau.ratio*sum((diag(sigtheta.q)+mutheta.q^2)*DQsig)
+    pd2mu = mfactor*pd1mu-0.5*sig.ratio*tau.ratio*sum((diag(sigtheta.q)+mutheta.q^2)*DQmu)
     sig2psi.q.old = sig2psi.q
-    sig2psi.q =  -0.5/(pd1sig+pd2sig)
+    sig2psi.q = -0.5/(pd1sig+pd2sig)
     mupsi.q.old = mupsi.q
     
-    # Convergence
-    bool1 = mean((mubeta.q.old - mubeta.q)^2) < eps
-    bool2 = mean((muu.q.old - muu.q)^2) < eps
-    if (bool1 & bool2) break
+    # ELBO calculation for psi
+    sigpsi.q = sqrt(sig2psi.q)
+    mu2psi.q = mupsi.q^2
+    term1 = exp(sig2psi.q*bindices2/2+mupsi.q*bindices)
+    term2 = exp(sig2psi.q*bindices2/2-mupsi.q*bindices)
+    lbnew = lbnew.wopsibits
+    lbnew = lbnew-(-0.5*log(2*pi)-0.5*log(sig2psi.q)-0.5)
+    S1 =  -w0*(sigpsi.q*const1*exp(-mu2psi.q/(2*sig2psi.q))+mupsi.q*(1-2*pnorm(-mupsi.q/sigpsi.q)))
+    lbnew = lbnew+T*(T+1)/4*(sigpsi.q*const1*exp(-mu2psi.q/(2*sig2psi.q))+mupsi.q*(1-2*pnorm(-mupsi.q/sigpsi.q)))
+    Qvec = term1*(1-pnorm(-mupsi.q/sigpsi.q-sigpsi.q*bindices))
+    Qvec = Qvec+term2*(1-pnorm(mupsi.q/sigpsi.q-sigpsi.q*bindices)) 
+    lbnew = lbnew-0.5*tau.ratio*sig.ratio*sum(diag((sigtheta.q+outer(mutheta.q,mutheta.q))%*%diag(Qvec)))
+    lbnew = lbnew+log(w0/2)+S1
+    dif = lbnew-lbfull
+    
+    # Modify step size until ELBO increases
+    if(dif < 0)
+    {
+      step = 1
+      dif.try = dif
+      while(dif.try < 0) 
+      {
+        step = step*0.5
+        sig2psi.q.try = 1/(1/sig2psi.q.old+step*(1/sig2psi.q-1/sig2psi.q.old))
+        sigpsi.q.try = sqrt(sig2psi.q.try)
+        mupsi.q.try = sig2psi.q.try*(mupsi.q.old/sig2psi.q.old+step*(mupsi.q/sig2psi.q-mupsi.q.old/sig2psi.q.old))
+        mu2psi.q.try = mupsi.q.try^2
+        term1 = exp(sig2psi.q.try*bindices2/2+mupsi.q.try*bindices)
+        term2 = exp(sig2psi.q.try*bindices2/2-mupsi.q.try*bindices)
+        lbnew = lbnew.wopsibits
+        lbnew = lbnew-(-0.5*log(2*pi)-0.5*log(sig2psi.q.try)-0.5)
+        S1 =  -w0*(sigpsi.q.try*const1*exp(-mu2psi.q.try/(2*sig2psi.q.try))+mupsi.q.try*(1-2*pnorm(-mupsi.q.try/sigpsi.q.try)))
+        lbnew = lbnew+T*(T+1)/4*(sigpsi.q.try*const1*exp(-mu2psi.q.try/(2*sig2psi.q.try))+mupsi.q.try*(1-2*pnorm(-mupsi.q.try/sigpsi.q.try)))
+        Qvec = term1*(1-pnorm(-mupsi.q.try/sigpsi.q.try-sigpsi.q.try*bindices))
+        Qvec = Qvec+term2*(1-pnorm(mupsi.q.try/sigpsi.q.try-sigpsi.q.try*bindices)) 
+        lbnew = lbnew-0.5*tau.ratio*sig.ratio*sum(diag((sigtheta.q+outer(mutheta.q,mutheta.q))%*%diag(Qvec)))
+        lbnew = lbnew+log(w0/2)+S1
+        dif.try = lbnew-lbfull
+      }
+      sigpsi.q = sigpsi.q.try
+      sig2psi.q = sig2psi.q.try
+      mupsi.q = mupsi.q.try
+      mu2psi.q = mu2psi.q.try
+    }    
+    dif = lbnew-lbold
+    dif = dif/abs(lbnew)
+    lbold = lbnew
+    lb = c(lb,lbnew)
+    if (dif < tol) break
   }
   post_curve=drop(vphi%*%mutheta.q)
   curve_var=drop(vphi^2%*%diag(sigtheta.q))
   return(list(
+    lb=lb,
     mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
     muu.q=muu.q, sigu.q=sigu.q,
     asigtl=asigtl, bsigtl=bsigtl,
