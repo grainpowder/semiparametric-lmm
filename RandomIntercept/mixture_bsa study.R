@@ -88,8 +88,6 @@ dev.off()
 library(bspmmGP)
 library(dplyr)
 library(Matrix)
-library(ggplot2)
-library(gridExtra)
 library(latex2exp)
 
 study = cadmium$studycode   # study code
@@ -170,6 +168,7 @@ random = data.frame(
 fe = ggplot(fixed, aes(x=names, y=mean, color=method)) + 
   geom_errorbar(data=fixed, mapping=aes(ymin=lower, ymax=upper), position="dodge") +
   geom_point(position=position_dodge(width=0.9), size=1.6) +
+  geom_hline(yintercept = 0, color="black", size=0.7, linetype="dotted") +
   scale_color_manual(values=c("deepskyblue4","darkorange3")) +
   scale_x_discrete(
     breaks=c("male","female","age>=50","asian","intercept"),
@@ -190,7 +189,6 @@ re = ggplot(random, aes(x=MCMC, y=VB)) +
   geom_abline(slope=1, intercept=0) +
   theme_classic() +
   ggtitle("Random effects")
-dev.off()
 
 
 # Nonlinear curve
@@ -206,7 +204,6 @@ residual = data.frame(
   residual=c(unlist(y)-ffitr_dpm$wbeta$mean-ffitr_dpm$bhat$mean[studyId],
              y-cbind(1,w)%*%vbresult_dpm$mubeta.q-Z%*%vbresult_dpm$muu.q),
   method=rep(c("MCMC","VB"),each=length(x)))
-pdf("./figures/cadmium_curve.pdf")
 mc = ggplot() +
   geom_point(data=residual,
              mapping=aes(x=variate,y=residual,color=method,shape=method)) +
@@ -217,7 +214,7 @@ mc = ggplot() +
             mapping=aes(x=x,y=y),color="deepskyblue4",size=1.5) +
   geom_line(data=data.frame(x=x[ord], y=vbresult_dpm$post_curve[ord]),
             mapping=aes(x=x,y=y),color="darkorange3",size=1.5) +
-  xlab("Nonparametric variate")+
+  xlab("Ucd_GM")+
   ylab("Residuals")+
   theme_bw()+
   ggtitle("Mean curve") +
