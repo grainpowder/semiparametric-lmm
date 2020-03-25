@@ -6,8 +6,8 @@ library(gridExtra)
 
 # Simulation Study --------------------------------------------------------
 # Simulation size setting
-set.seed(20); R = 10 # R : Truncation level
-N = 50; T = 4; D = 8
+set.seed(50); R = 10 # R : Truncation level
+N = 50; T = 5; D = 8
 Z = make_Z(rep(T, N))
 
 # Data generation
@@ -15,13 +15,12 @@ beta = rnorm(D+1)
 w = matrix(rnorm(N*T*D), N*T, D)
 f = function(x) 2*x*sin(pi*x)
 x = 3*runif(N*T); ord = order(x)
-mu1 = 3; mu2 = 0; mu3 = -3
 # Represent random intercept as mixture of 3 normal distributions
 assigner = runif(N)
 mu1 = 3; mu2 = 0; mu3 = -3
-u = rnorm(N, mu1, 0.49)
-u[assigner > 0.33] = rnorm(sum(assigner > 0.33), mu2, 0.49)
-u[assigner > 0.66] = rnorm(sum(assigner > 0.66), mu3, 0.49)
+u = rnorm(N, mu1, 0.36)
+u[assigner > 0.33] = rnorm(sum(assigner > 0.33), mu2, 0.36)
+u[assigner > 0.66] = rnorm(sum(assigner > 0.66), mu3, 0.36)
 y = cbind(1, w)%*%beta + Z%*%u + f(x) + rnorm(nrow(Z))
 
 # Estimation
