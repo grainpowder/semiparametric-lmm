@@ -483,7 +483,7 @@ mixture_bsa = function(y,x,w,Z,J,R,prior=NULL,maxiter=500,tol=1e-5)
   curve_var = drop(vphi^2%*%diag(sigtheta.q))
   return(list(
     mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
-    muu.q=muu.q, sigu.q=sigu.q,
+    muu.q=muu.q, sigu.q=sigu.q, mutheta.q=mutheta.q,
     post_lower=qnorm(0.025,post_curve,sqrt(curve_var)),
     post_upper=qnorm(0.975,post_curve,sqrt(curve_var)),
     post_curve=post_curve,

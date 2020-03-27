@@ -332,7 +332,7 @@ ex_bsa = function(y, x, w, Z, J, productivity=TRUE, prior=NULL, maxiter=500, tol
   post_curve=drop(vphi%*%mutheta.q)
   curve_var=drop(vphi^2%*%diag(sigtheta.q))
   return(list(
-    lb=lb,
+    lb=lb, mutheta.q=mutheta.q,
     mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
     muu.q=muu.q, sigu.q=sigu.q,
     asigtl=asigtl, bsigtl=bsigtl,
@@ -464,6 +464,7 @@ exmixture = function(y, w, Z, R=10, productivity=TRUE, prior=NULL, maxiter=500, 
 
 exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, maxiter=500, tol=1e-4)
 {
+  library(matrixStats)
   sgn = (-1)^productivity
   N = ncol(Z)
   D = ncol(w)
@@ -743,7 +744,7 @@ exmixture_bsa = function(y, x, w, Z, J, R=10, productivity=TRUE, prior=NULL, max
   post_curve=drop(vphi%*%mutheta.q)
   curve_var=drop(vphi^2%*%diag(sigtheta.q))
   return(list(
-    lb=lb,
+    lb=lb, mutheta.q=mutheta.q,
     mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
     muu.q=muu.q, sigu.q=sigu.q,
     asigtl=asigtl, bsigtl=bsigtl,
