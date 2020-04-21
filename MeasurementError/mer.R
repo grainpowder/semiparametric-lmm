@@ -1,7 +1,7 @@
-mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
+mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3, nknots=10)
 {
-  library(matrixStats)
   library(splines)
+  library(matrixStats)
   N = length(y)
   D = ncol(w)
   W = cbind(1, w)
@@ -12,7 +12,8 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   {
     mubeta.0 = rep(0, D+1)
     sigbeta.0 = diag(rep(100, D+1))
-    sigv2 = sigmu2 = 1e2
+    sigv2 = 1
+    sigmu2 = 100
     axi = bxi = atau = btau = asig = bsig = 1e-3
   } else {
     mubeta.0 = prior$mubeta.0
@@ -30,15 +31,15 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   sbimb0 = sb0i %*% mubeta.0
   
   # Define grids
-  grids = seq(min(v), max(v), length.out=n_grid)
-  knots = quantile(grids, seq(0,1,length.out=20)[-c(1,20)])
+  err = diff(range(v))
+  grids = seq(min(v)-err/10, max(v)+err/10, length.out=n_grid)
+  knots = quantile(grids, seq(0,1,length.out=nknots)[-c(1,nknots)])
   vphi_g = bs(grids, knots=knots, intercept=FALSE) # M*J
   J = ncol(vphi_g)
   
   # Initialize hyperparameters
-  knots = quantile(v, seq(0,1,length.out=20)[-c(1,20)])
+  knots = quantile(v, seq(0,1,length.out=nknots)[-c(1,nknots)])
   vphiq = bs(v, knots=knots, intercept=FALSE)
-  vphitvphiq = crossprod(vphiq)
   mubeta.q = rep(0, D+1)
   mutheta.q = rep(0, J)
   sigtheta.q = diag(rep(1, J))
@@ -49,6 +50,7 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   atautl = atau+(J/2)
   asigtl = asig+(N/2)
   mutl = 0
+  qx = qx2 = qvarx = rep(0,N)
   
   # Update as
   for (iter in 1:maxiter)
@@ -62,17 +64,21 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
     mubeta.q = drop(mubeta.q)
     
     # denoised value(x)
-    pmgrid = sig.ratio*vphi_g%*%(mutheta.q^2+diag(sigtheta.q)) + (xi.ratio+(1/sigv2))*(grids^2) - 2*xi.ratio*mutl*grids
-    pmgrid = -0.5*drop(pmgrid) + outer(grids,v)/sigv2 + sig.ratio*outer(drop(vphi_g%*%mutheta.q), drop(y-W%*%mubeta.q))
-    pmgrid = t(pmgrid) # N*M
-    
-    qx = exp(colLogSumExps(log(grids)+t(pmgrid)) - rowLogSumExps(pmgrid))
-    qx2 = exp(colLogSumExps(2*log(grids)+t(pmgrid)) - rowLogSumExps(pmgrid))
-    qvarx = qx2 - (qx)^2
-    if (sum(qvarx<0) != 0) browser()
-    
-    vphiq = exp(pmgrid)%*%vphi_g / exp(outer(rowLogSumExps(pmgrid), rep(1,J)))
-    vphitvphiq = t(vphiq) %*% vphiq
+    common = sig.ratio*diag(vphi_g%*%(outer(mutheta.q,mutheta.q)+sigtheta.q)%*%t(vphi_g)) + (xi.ratio+1/sigv2)*(grids^2) - 2*xi.ratio*mutl*grids
+    resid = drop(y-W%*%mubeta.q)
+    for (n in 1:N)
+    {
+      pmgrid = -0.5*common + v[n]*grids/sigv2 + sig.ratio*resid[n]*drop(vphi_g%*%mutheta.q)
+      lognorm = logSumExp(pmgrid)
+      gstar = max(log(abs(grids))+pmgrid)
+      colstar = apply(abs(vphi_g)+pmgrid,2,max)
+      
+      qx[n] = exp(log(sum(sign(grids) * exp(log(abs(grids))+pmgrid-gstar))) + gstar - lognorm)
+      qx2[n] = exp(logSumExp(2*log(abs(grids))+pmgrid) - lognorm)
+      vphiq[n,] = exp(log(apply(sign(vphi_g) * exp(log(abs(vphi_g))+pmgrid-outer(rep(1,n_grid), colstar)),2,sum)) + colstar - lognorm)
+    }
+    qvarx = qx2-(qx)^2
+    vphitvphiq = t(vphiq)%*%vphiq
     
     # theta
     sigtheta.q = tau.ratio*diag(J) + sig.ratio*vphitvphiq
@@ -99,9 +105,16 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
     sig.ratio = asigtl / bsigtl
     
     # Convergence
-    bool1 = if (mean((mubeta.q.old-mubeta.q)^2) < tol)
-    bool2 = if (mean((mutheta.q.old-mutheta.q)^2) < tol)
-    if (bool1&bool2) break
+    bool1 = mean((mubeta.q.old-mubeta.q)^2) < tol
+    bool2 = mean((mutheta.q.old-mutheta.q)^2) < tol
+    if (bool1&bool2) {
+      break
+    } else {
+      print("")
+      print(mean((mubeta.q.old-mubeta.q)^2))
+      print(mean((mutheta.q.old-mutheta.q)^2))
+      print("")
+    }
   }
   print(iter)
   return(list(
@@ -126,4 +139,4 @@ plot(v,y,main="Noise",pch=19)
 plot(v,y,main="Noise and Overshadowed Pattern",pch=19)
 points(x,y, col=2,pch=19,cex=0.7)
 
-result = mer(y,w,v)
+result = mer(y,w,x)
