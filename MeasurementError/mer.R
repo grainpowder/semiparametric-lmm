@@ -60,11 +60,6 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
     mubeta.q.old = mubeta.q
     mutheta.q.old = mutheta.q
     
-    # beta
-    sigbeta.q = solve(sb0i + sig.ratio*WtW)
-    mubeta.q = sigbeta.q %*% (sbimb0 + sig.ratio*t(W)%*%(y-vphiq%*%mutheta.q))
-    mubeta.q = drop(mubeta.q)
-    
     # denoised variate(x)
     common = -0.5*(sig.ratio*diag(vphi_g%*%(outer(mutheta.q, mutheta.q)+sigtheta.q)%*%t(vphi_g)) + (xi.ratio+(1/sig2v))*grid^2 - 2*mutl*xi.ratio*grid) # M*1
     resid = drop(y-W%*%mubeta.q)
@@ -72,6 +67,7 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
     {
       # Assume a>b>c. Then log(exp(a)-exp(b)+exp(c)) = log(1-exp(b-a)+exp(b-c))+a
       pmgrid = common + v[n]*grid/sig2v + sig.ratio*resid[n]*vphi_g%*%mutheta.q # M*1
+      pmgrid = drop(pmgrid)
       lognormalizer = logSumExp(pmgrid)
       # normalizer = sum(exp(pmgrid))
       max_exp = max(log(abs(grid))+pmgrid)
@@ -79,10 +75,18 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
       # ex[n] = sum(grid*exp(pmgrid))/normalizer
       ex2[n] = exp(logSumExp(2*log(abs(grid))+pmgrid) - lognormalizer)
       # ex2[n] = sum(grid^2*exp(pmgrid))/normalizer
-      vphiq[n,] = drop(t(vphi_g)%*%exp(pmgrid))/exp(lognormalizer)
+      colmax = apply(log(abs(vphi_g))+pmgrid,2,max)
+      exponent =  sign(vphi_g)*exp(log(abs(vphi_g))+pmgrid-outer(rep(1,n_grid),colmax))
+      vphiq[n,] = exp(log(apply(exponent,2,sum))+colmax-lognormalizer)
+      # vphiq[n,] = drop(t(vphi_g)%*%exp(pmgrid))/exp(lognormalizer)
     }
     vphitvphiq = t(vphiq)%*%vphiq
     varx = ex2 - (ex)^2
+    
+    # beta
+    sigbeta.q = solve(sb0i + sig.ratio*WtW)
+    mubeta.q = sigbeta.q %*% (sbimb0 + sig.ratio*t(W)%*%(y-vphiq%*%mutheta.q))
+    mubeta.q = drop(mubeta.q)
     
     # theta
     sigtheta.q = solve(tau.ratio*diag(J) + sig.ratio*vphitvphiq)
@@ -139,8 +143,8 @@ v = rnorm(N, x, sqrt(sig2v))
 w = matrix(rnorm(N*D), N,D)
 f = function(x) x*sin(pi*x)
 y = cbind(1,w)%*%beta + f(x) + rnorm(N)
-plot(v,y,main="Noise",pch=19)
-plot(v,y,main="Noise and Overshadowed Pattern",pch=19)
-points(x,y, col=2,pch=19,cex=0.7)
+# plot(v,y,main="Noise",pch=19)
+# plot(v,y,main="Noise and Overshadowed Pattern",pch=19)
+# points(x,y, col=2,pch=19,cex=0.7)
 
 result = mer(y,w,x)
