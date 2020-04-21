@@ -1,17 +1,20 @@
-mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3, nknots=10)
+mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
 {
+  library(matrixStats)
+  library(splines)
   N = length(y)
   D = ncol(w)
   W = cbind(1,w)
   WtW = crossprod(W)
+  nknots = min(round(log(length(unique(v)))), 35)
   
   # Hyperparameters
   if (is.null(prior))
   {
     mubeta.0 = rep(0, D+1)
-    sigbeta.0 = diag(rep(100, D+1))
-    sig2v = 1
-    sig2mu = 100
+    sigbeta.0 = diag(rep(1e3, D+1))
+    sig2v = 100
+    sig2mu = 1e8
     axi = bxi = atau = btau = asig = bsig = 1e-3
   }
   else
@@ -36,7 +39,7 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3, nknots=10
   
   # Construct spline bases on these grids
   knots = quantile(grid, seq(0,1,length=(nknots+2))[-c(1,nknots+2)])
-  vphi_g = splines::bs(grid, knots=knots, degree=3, intercept=TRUE) # M*J
+  vphi_g = bs(grid, knots=knots, degree=3, intercept=TRUE) # M*J
   J = ncol(vphi_g)
   
   # Initialize variational parameters
@@ -67,11 +70,16 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3, nknots=10
     resid = drop(y-W%*%mubeta.q)
     for (n in 1:N)
     {
+      # Assume a>b>c. Then log(exp(a)-exp(b)+exp(c)) = log(1-exp(b-a)+exp(b-c))+a
       pmgrid = common + v[n]*grid/sig2v + sig.ratio*resid[n]*vphi_g%*%mutheta.q # M*1
-      normalizer = sum(exp(pmgrid))
-      ex[n] = sum(grid*exp(pmgrid))/normalizer
-      ex2[n] = sum(grid^2*exp(pmgrid))/normalizer
-      vphiq[n,] = drop(t(vphi_g)%*%exp(pmgrid))/normalizer
+      lognormalizer = logSumExp(pmgrid)
+      # normalizer = sum(exp(pmgrid))
+      max_exp = max(log(abs(grid))+pmgrid)
+      ex[n] = exp(log(sum(sign(grid)*exp(log(abs(grid))+pmgrid-max_exp)))+max_exp - lognormalizer)
+      # ex[n] = sum(grid*exp(pmgrid))/normalizer
+      ex2[n] = exp(logSumExp(2*log(abs(grid))+pmgrid) - lognormalizer)
+      # ex2[n] = sum(grid^2*exp(pmgrid))/normalizer
+      vphiq[n,] = drop(t(vphi_g)%*%exp(pmgrid))/exp(lognormalizer)
     }
     vphitvphiq = t(vphiq)%*%vphiq
     varx = ex2 - (ex)^2
@@ -109,11 +117,13 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3, nknots=10
     }
     else
     {
-      cat("beta :", sqrt(mean((mubeta.q-mubeta.q.old)^2)), "\ttheta :", sqrt(mean((mutheta.q-mutheta.q.old)^2)), "\n")
-      if(is.nan(sqrt(mean((mutheta.q-mutheta.q.old)^2)))) browser()
+      cat(iter,"\tbeta :", sqrt(mean((mubeta.q-mubeta.q.old)^2)), "\ttheta :", sqrt(mean((mutheta.q-mutheta.q.old)^2)), "\n")
     }
   }
-  print("##### CLEAR #####")
+  knots = quantile(ex, seq(0,1,length=(nknots+2))[-c(1,nknots+2)])
+  curve = bs(ex, knots=knots, degree=3, intercept=TRUE)%*%mutheta.q
+  browser()
+  plot(ex,curve)
 }
 
 # y = wb + f(x)
