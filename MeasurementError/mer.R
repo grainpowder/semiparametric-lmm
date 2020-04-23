@@ -28,13 +28,15 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   }
   
   # Initialize variational parameters
-  mubeta.q = rep(0, D+1)
-  ex = rep(0, N)
+  mubeta.q = solve(crossprod(W))%*%t(W)%*%y
+  ex = v
+  varx = var(v)
   axitl = axi + (N/2)
   asigtl = asig + (N/2)
   xi.ratio = axi/bxi
   sig.ratio = asig/bsig
-  mutl = gamtl = 0
+  mutl = mean(v)
+  gamtl = 0
   sig2gamtl = 100
   
   # Update as
@@ -42,11 +44,6 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   {
     mubeta.q.old = mubeta.q
     ex.old = ex
-    
-    # denoised value
-    varx = 1/(xi.ratio+(1/sig2v)+sig.ratio*(gamtl^2+sig2gamtl))
-    ex = varx*(xi.ratio*mutl + v/sig2v + sig.ratio*gamtl*(y-W%*%mubeta.q))
-    ex = drop(ex)
     
     # beta
     sigbeta.q = solve(diag(rep(sig2beta,D+1)) + sig.ratio*WtW)
@@ -58,15 +55,20 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
     gamtl = sig2gamtl*sig.ratio*sum(ex*(y-W%*%mubeta.q))
     
     # mu
-    sig2mutl = 1/(xi.ratio+1/sig2mu)
+    sig2mutl = 1/(N*xi.ratio+1/sig2mu)
     mutl = sig2mutl*xi.ratio*sum(ex)
     
     # xi
     bxitl = bxi + 0.5*(sum((ex-mutl)^2)+sum(varx)+N*sig2mutl)
     xi.ratio = axitl/bxitl
     
+    # denoised value
+    varx = 1/(xi.ratio+(1/sig2v)+sig.ratio*(gamtl^2+sig2gamtl))
+    ex = varx*(xi.ratio*mutl + v/sig2v + sig.ratio*gamtl*(y-W%*%mubeta.q))
+    ex = drop(ex)
+    
     # sigma
-    bsigtl = bsig + 0.5*(sum((y-W%*%mubeta.q-gamtl*ex)^2)+sum(diag(WtW%*%sigbeta.q))+sum(ex^2+varx)*sig2gamtl)
+    bsigtl = bsig + 0.5*(sum((y-W%*%mubeta.q-gamtl*ex)^2)+sum(diag(WtW%*%sigbeta.q))+sum(ex^2+varx)*sig2gamtl+N*gamtl^2*varx)
     sig.ratio = asigtl/bsigtl
     
     # Convergence
@@ -90,10 +92,11 @@ RR = 0.7
 xi2 = 0.9
 sig2v = xi2/RR-xi2
 mux = 3
-x = rnorm(N, mux, sqrt(psi2))
+x = rnorm(N, mux, sqrt(xi2))
 v = rnorm(N, x, sqrt(sig2v))
 w = matrix(rnorm(N*D), N,D)
 y = cbind(1,w)%*%beta + gam*x + rnorm(N)
 for (idx in 1:D) plot(w[,idx],y,main=paste("idx =",idx),xlab="")
-plot(v,y,main="v vs y")
+plot(v,y,main="Noise and Signal",pch=19)
+points(x,y,cex=0.7,col=2,pch=19)
 result = mer(y,w,x)
