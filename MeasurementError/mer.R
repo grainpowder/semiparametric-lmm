@@ -11,7 +11,7 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   # Hyperparameters
   if (is.null(prior))
   {
-    sig2v = sd(v)
+    sig2v = var(v)
     sig2beta = sig2gam = sig2mu = 100
     axi = bxi = asig = bsig = 1e-3
   }
@@ -42,11 +42,12 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   # Update as
   for (iter in 1:maxiter)
   {
+    
     mubeta.q.old = mubeta.q
     ex.old = ex
     
     # beta
-    sigbeta.q = solve(diag(rep(sig2beta,D+1)) + sig.ratio*WtW)
+    sigbeta.q = solve(diag(rep(1/sig2beta,D+1)) + sig.ratio*WtW)
     mubeta.q = sig.ratio*sigbeta.q%*%t(W)%*%(y-gamtl*ex)
     mubeta.q = drop(mubeta.q)
     
@@ -59,17 +60,17 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
     mutl = sig2mutl*xi.ratio*sum(ex)
     
     # xi
-    bxitl = bxi + 0.5*(sum((ex-mutl)^2)+sum(varx)+N*sig2mutl)
+    bxitl = bxi + 0.5*(sum((ex-mutl)^2)+N*varx+N*sig2mutl)
     xi.ratio = axitl/bxitl
+    
+    # sigma
+    bsigtl = bsig + 0.5*(sum((y-W%*%mubeta.q-gamtl*ex)^2)+sum(diag(WtW%*%sigbeta.q))+sum(ex^2+varx)*sig2gamtl)
+    sig.ratio = asigtl/bsigtl
     
     # denoised value
     varx = 1/(xi.ratio+(1/sig2v)+sig.ratio*(gamtl^2+sig2gamtl))
     ex = varx*(xi.ratio*mutl + v/sig2v + sig.ratio*gamtl*(y-W%*%mubeta.q))
     ex = drop(ex)
-    
-    # sigma
-    bsigtl = bsig + 0.5*(sum((y-W%*%mubeta.q-gamtl*ex)^2)+sum(diag(WtW%*%sigbeta.q))+sum(ex^2+varx)*sig2gamtl+N*gamtl^2*varx)
-    sig.ratio = asigtl/bsigtl
     
     # Convergence
     mse1 = sqrt(mean((mubeta.q-mubeta.q.old)^2))
