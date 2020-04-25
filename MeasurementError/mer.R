@@ -1,23 +1,19 @@
-mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
+mer = function(y, v, prior=NULL, maxiter=1000, tol=1e-4, n_grid=1e3)
 {
-  # Fit yi = Wi*beta + gamma*xi where vi~N(xi, sig2v)
+  # Estimate parameters of yi=b0+b1*xi+ei where (vi,yi) is observed instead of (xi,yi)
   N = length(y)
-  D = ncol(w)
-  W = cbind(1,w)
-  WtW = crossprod(W)
   
   # Hyperparameters
   if (is.null(prior))
   {
-    sig2v = var(v)
-    sig2beta = sig2gam = sig2mu = 100
+    sig2v = 0.1
+    sig2beta = sig2mu = 100
     axi = bxi = asig = bsig = 1e-3
   }
   else
   {
     sig2v = prior$sig2v
     sig2beta = prior$sig2beta
-    sig2gam = prior$sig2gam
     sig2mu = prior$sig2mu
     axi = prior$axi
     bxi = prior$bxi
@@ -26,90 +22,77 @@ mer = function(y, w, v, prior=NULL, maxiter=500, tol=1e-4, n_grid=1e3)
   }
   
   # Initialize variational parameters
-  ex = v
   mutl = mean(v)
-  varx = var(v)
-  asigtl = asig + (N/2)
   axitl = axi + (N/2)
-  gamtl = 0
-  sig.ratio = asig/bsig
+  asigtl = asig + (N/2)
   xi.ratio = axi/bxi
+  sig.ratio = asig/bsig
+  mubeta.q = rep(0, 2)
+  sigbeta.q = diag(rep(10, 2))
+  
+  # Update as
   lb = rep(0, maxiter)
   lbold = -Inf
-  
-  mubeta.q = rep(0,D+1)
-  sig2gamtl = 10
-  # Update as
   for (iter in 1:maxiter)
   {
-    mubeta.q.old = mubeta.q
-    ex.old = ex
+    # denoised value
+    varx = 1/(xi.ratio+(1/sig2v)+sig.ratio*(mubeta.q^2+diag(sigbeta.q))[2])
+    ex = varx*(xi.ratio*mutl + v/sig2v + sig.ratio*mubeta.q[2]*(y-mubeta.q[1]))
+    EX = cbind(1, ex)
+    EXX = matrix(c(N, sum(ex), sum(ex), sum(ex^2+varx)),2,2)
     
-    # denoised value(x)
-    varx = 1/(xi.ratio+(1/sig2v)+sig.ratio*(gamtl^2+sig2gamtl))
-    ex = varx*(xi.ratio*mutl+v/sig2v+sig.ratio*gamtl*drop(y-W%*%mubeta.q))
+    # beta
+    sigbeta.q = solve(diag(rep(1/sig2beta,2))+sig.ratio*EXX)
+    mubeta.q = drop(sig.ratio*sigbeta.q%*%t(EX)%*%y)
     
     # mu
-    sig2mutl = 1/(1/sig2mu+xi.ratio*N)
+    sig2mutl = 1/((1/sig2mu)+N*xi.ratio)
     mutl = sig2mutl*xi.ratio*sum(ex)
     
     # xi
-    bxitl = bxi + 0.5*(sum((ex-mutl)^2)+N*(sig2mutl+varx))
+    bxitl = bxi + 0.5*(sum((ex-mutl)^2)+N*(varx+sig2mutl))
     xi.ratio = axitl/bxitl
     
-    # beta
-    sigbeta.q = solve(diag(rep(1/sig2beta,D+1)) + sig.ratio*WtW)
-    mubeta.q = sig.ratio*sigbeta.q%*%t(W)%*%(y-gamtl*ex)
-    mubeta.q = drop(mubeta.q)
-    
-    # gamma
-    sig2gamtl = 1/(1/sig2gam+sig.ratio*sum(ex^2+varx))
-    gamtl = sig2gamtl*sig.ratio*sum(ex*drop(y-W%*%mubeta.q))
-    
     # sigma
-    ssterm = sum((y-W%*%mubeta.q-gamtl*ex)^2)
-    trterm1 = sum(diag(WtW%*%sigbeta.q))
-    trterm2 = (gamtl^2+sig2gamtl)*N*varx
-    trterm3 = sig2gamtl*sum(ex^2)
-    bsigtl = bsig + 0.5*(ssterm+trterm1+trterm2+trterm3)
+    cpterm = sum(y^2) - 2*sum(y*(EX%*%mubeta.q)) + sum(diag(EXX%*%(outer(mubeta.q,mubeta.q)+sigbeta.q)))
+    bsigtl = bsig + 0.5*cpterm
     sig.ratio = asigtl/bsigtl
     
     # ELBO
-    lbnew = -0.5*log(2*pi) - (N/2)*(log(bsigtl)-digamma(asigtl)) - 0.5*sig.ratio*(ssterm+trterm1+trterm2+trterm3)
-    lbnew = lbnew - 0.5*log(2*pi) - (N/2)*log(sig2v) - (sum((v-ex)^2)+N*varx)/(2*sig2v)
-    lbnew = lbnew - 0.5*N*(log(bxitl)-digamma(axitl)) - 0.5*xi.ratio*(sum((ex-mutl)^2) + N*(varx+sig2mutl))
-    lbnew = lbnew + 0.5*N*(varx+1)
-    lbnew = lbnew - 0.5*(D+1)*log(sig2beta) - sum(mubeta.q^2+diag(sigbeta.q))/(2*sig2beta)
-    lbnew = lbnew + 0.5*(determinant(sigbeta.q)$modulus[1]+D+1)
-    lbnew = lbnew - 0.5*log(sig2gam) - 0.5*(gamtl^2+sig2gamtl)/sig2gam + 0.5*(log(sig2gamtl)+1)
-    lbnew = lbnew - 0.5*log(sig2mu) - 0.5*(mutl^2+sig2mutl)/sig2mu + 0.5*(log(sig2mutl)+1)
-    lbnew = lbnew + lgamma(axitl)-lgamma(axi)+axitl*log(bxitl)-axi*log(bxi)+(axitl+1)*(log(bxitl)-digamma(axitl))-(axi+1)*(log(bxi)-digamma(axi))+axitl-bxi*xi.ratio
-    lbnew = lbnew + lgamma(asigtl)-lgamma(asig)+asigtl*log(bsigtl)-asig*log(bsig)+(asigtl+1)*(log(bsigtl)-digamma(asigtl))-(asig+1)*(log(bsig)-digamma(asig))+asigtl-bsig*sig.ratio
-    
-    # Convergence
-    if (abs(lbnew-lbold) < tol) break
-    lbold = lb[iter] = lbnew
-    mse1 = sqrt(mean((mubeta.q-mubeta.q.old)^2))
-    mse2 = sqrt(mean((ex-ex.old)^2))
-    cat("\nbeta :",mse1, "\tx :", mse2)
+    lbnew = -0.5*N*log(2*pi) - 0.5*N*(log(bsigtl)-digamma(asigtl)) - 0.5*sig.ratio*cpterm
+    lbnew = lbnew - 0.5*N*log(2*pi) - 0.5*N*log(sig2v) - 0.5*(sum((v-ex)^2)+N*varx)/sig2v
+    lbnew = lbnew - 0.5*N*(log(bxitl)-digamma(axitl)) - 0.5*xi.ratio*(sum((ex-mutl)^2)+N*(varx+sig2mutl))
+    lbnew = lbnew + 0.5*N*log(varx) + 0.5*N
+    lbnew = lbnew - log(sig2beta) - 0.5*sum(mubeta.q^2+diag(sigbeta.q))/sig2beta
+    lbnew = lbnew + 0.5*determinant(sigbeta.q,logarithm=TRUE)$modulus[1] + 1
+    lbnew = lbnew - 0.5*log(sig2mu) - 0.5*(mutl^2+sig2mutl)/sig2mu
+    lbnew = lbnew + 0.5*log(sig2mutl) + 0.5
+    lbnew = lbnew - lgamma(axi) + axi*log(bxi) - (axi+1)*(log(bxitl)-digamma(axitl)) - xi.ratio*bxi
+    lbnew = lbnew + lgamma(axitl) - axitl*log(bxitl) + (axitl+1)*(log(bxitl)-digamma(axitl)) + xi.ratio*bxitl
+    lbnew = lbnew - lgamma(asig) + asig*log(bsig) - (asig+1)*(log(bsigtl)-digamma(asigtl)) - sig.ratio*bsig
+    lbnew = lbnew + lgamma(asigtl) - asigtl*log(bsigtl) + (asigtl+1)*(log(bsigtl)-digamma(asigtl)) + sig.ratio*bsigtl
+    lb[iter] = lbnew
+    if (lbnew>lbold & lbnew-lbold<tol) break
+    lbold = lbnew
   }
-  browser()
+  lb = lb[1:iter]
+  return(list(lb=lb, ex=ex, varx=varx, mubeta.q=mubeta.q, sigbeta.q=sigbeta.q))
 }
 
-# y = wb + f(x)
+# y = b0 + b1x
 set.seed(10)
-N = 130; D = 5
-beta = rnorm(D+1)
-gam = 1.1
-RR = 0.7
-xi2 = 0.9
+N = 130
+RR = 0.8
+xi2 = 0.8
 sig2v = xi2/RR-xi2
 mux = 3
+beta = c(0.5, 1.1)
 x = rnorm(N, mux, sqrt(xi2))
 v = rnorm(N, x, sqrt(sig2v))
-w = matrix(rnorm(N*D), N,D)
-y = cbind(1,w)%*%beta + gam*x + rnorm(N)
-# for (idx in 1:D) plot(w[,idx],y,main=paste("idx =",idx),xlab="")
-# plot(v,y,main="Noise and Signal",pch=19)
-# points(x,y,cex=0.7,col=2,pch=19)
-result = mer(y,w,v)
+y = cbind(1,x)%*%beta + rnorm(N)
+result = mer(y,v)
+par(mfrow=c(1,2))
+plot(result$lb,xlab="Iteration",ylab="",main="Evidence Lower Bound", type="l")
+plot(x,result$ex,xlab="True",ylab="Estimate",main="Corrupted variable")
+lines(-10:10,-10:10)
+result$mubeta.q
