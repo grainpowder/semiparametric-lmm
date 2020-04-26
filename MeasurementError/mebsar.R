@@ -56,6 +56,7 @@ mebsar = function(y, w, v, J, prior=NULL, maxiter=1000, tol=1e-4, n_grid=1e3)
   sig2psi.q = 0.01
   DQvec = DQvec_gen(J, mupsi.q, sig2psi.q)
   vphiq = matrix(0, N, J)
+  vphiqtvphiq = t(vphiq)%*%vphiq
   
   # ELBO calculation setting
   lb_const = -w0+(J*(J+1))/4
@@ -68,24 +69,33 @@ mebsar = function(y, w, v, J, prior=NULL, maxiter=1000, tol=1e-4, n_grid=1e3)
     # denoised value
     common = -0.5*(sig.ratio*diag(vphig%*%(outer(mutheta.q,mutheta.q)+sigtheta.q)%*%t(vphig)) + (1/sig2v+xi.ratio)*grids^2 - 2*xi.ratio*mutl*grids)
     resid = drop(y-W%*%mubeta.q)
-    lnpgrids = matrix(0, N, n_grid)
-    browser()
-    for (n in 1:N)
-    {
-      lnpgrid = common + (v[n]/sig2v)*grids + sig.ratio*resid[n]*drop(vphig%*%mutheta.q)
-      lnpgrids[n,] = lnpgrid
-      lognorm = logSumExp(lnpgrid)
-      
-      gstar = max(log(abs(grids)) + lnpgrid)
-      ex[n] = exp(log(sum(sign(grids)*exp(log(abs(grids)) + lnpgrid - gstar))) + gstar - lognorm)
-      ex2[n] = exp(logSumExp(2*log(abs(grids)) + lnpgrid) - lognorm)
-      
-      gstar = apply(log(abs(vphig)) + lnpgrid, 2, max)
-      vphiq[n,] = exp(log(apply(sign(vphig)*exp(log(abs(vphig))+lnpgrid-outer(rep(1,n_grid),gstar)), 2, sum)) + gstar - lognorm)
-    }
-    varx = ex2 - (ex)^2
-    A = colLogSumExps(exp(lnpgrids-rowLogSumExps(lnpgrids)))
-    vphiqtvphiq = t(vphig)%*%diag(A)%*%vphig
+    lnpgrids = common + outer(grids, v)/sig2v + sig.ratio*outer(drop(vphig%*%mutheta.q), resid)
+    pgrids = exp(lnpgrids)
+    normalizers = apply(pgrids, 2, sum)
+    ex = drop(t(pgrids)%*%grids / normalizers)
+    ex2 = drop(t(pgrids)%*%(grids^2) / normalizers)
+    varx = ex2 - ex^2
+    vphiq = t(pgrids)%*%vphig / normalizers
+    vphiqtvphiq = t(vphig)%*%diag(apply(t(pgrids)/normalizers,2,sum))%*%vphig
+    
+    # lnpgrids = matrix(0, N, n_grid)
+    # for (n in 1:N)
+    # {
+    #   if (n == 45) browser()
+    #   lnpgrid = common + (v[n]/sig2v)*grids + sig.ratio*resid[n]*drop(vphig%*%mutheta.q)
+    #   lnpgrids[n,] = lnpgrid
+    #   lognorm = logSumExp(lnpgrid)
+    #   
+    #   gstar = max(log(abs(grids)) + lnpgrid)
+    #   ex[n] = exp(log(sum(sign(grids)*exp(log(abs(grids)) + lnpgrid - gstar))) + gstar - lognorm)
+    #   ex2[n] = exp(logSumExp(2*log(abs(grids)) + lnpgrid) - lognorm)
+    # 
+    #   gstar = apply(log(abs(vphig)) + lnpgrid, 2, max)
+    #   vphiq[n,] = exp(log(apply(sign(vphig)*exp(log(abs(vphig))+lnpgrid-outer(rep(1,n_grid),gstar)), 2, sum)) + gstar - lognorm)
+    # }
+    # varx = ex2 - (ex)^2
+    # A = colLogSumExps(exp(lnpgrids-rowLogSumExps(lnpgrids)))
+    # vphiqtvphiq = t(vphig)%*%diag(A)%*%vphig
     
     # beta
     sigbeta.q = solve(sb0i+sig.ratio*WtW)
@@ -140,11 +150,21 @@ mebsar = function(y, w, v, J, prior=NULL, maxiter=1000, tol=1e-4, n_grid=1e3)
     lbnew = lbnew + lb_const*Eqabspsi_gen(mupsi.q, sig2psi.q) - 0.5*sig.ratio*tau.ratio*sum(diag((outer(mutheta.q,mutheta.q)+sigtheta.q)%*%DQvec_gen(J, mupsi.q, sig2psi.q)))
     lbnew = lbnew + 0.5*(log(2*pi)+log(sig2psi.q)+1)
     lb[iter] = lbnew
-    if (lbnew>lbold & lbnew-lbold<tol) break
+    if (abs(lbnew-lbold)<tol) break
     lbold = lbnew
   }
   lb = lb[1:iter]
-  browser()
+  vphi = sqrt(2)*cos(outer(ex,pi*(1:J)))
+  post_curve=drop(vphi%*%mutheta.q)
+  curve_var=drop(vphi^2%*%diag(sigtheta.q))
+  return(list(
+    lb=lb, mutheta.q=mutheta.q, sigtheta.q=sigtheta.q,
+    mubeta.q=mubeta.q, sigbeta.q=sigbeta.q,
+    asigtl=asigtl, bsigtl=bsigtl,
+    post_lower=qnorm(0.025,post_curve,sqrt(curve_var)),
+    post_upper=qnorm(0.975,post_curve,sqrt(curve_var)),
+    post_curve=post_curve
+  ))
 }
 
 set.seed(10)
@@ -158,6 +178,13 @@ mux = 2
 w = matrix(rnorm(N*D),N,D)
 x = rnorm(N, mux, sqrt(xi2))
 v = rnorm(N, x, sqrt(sig2v))
-f = function(x) x*sin(3*pi*x)
+f = function(x) x*sin(2*pi*x)
 y = cbind(1,w)%*%beta + f(x) + rnorm(N)
-result = mebsar(y,w,v,10)
+vb_result = mebsar(y,w,v,10)
+res = y - cbind(1,w)%*%vb_result$mubeta.q
+ord = order(x)
+plot(x, res, main="Result", xlab="", ylab="residual")
+lines(x[ord], vb_result$post_curve[ord], lwd=3, col=2)
+lines(x[ord], vb_result$post_upper[ord], lwd=2, col=3)
+lines(x[ord], vb_result$post_lower[ord], lwd=2, col=3)
+
