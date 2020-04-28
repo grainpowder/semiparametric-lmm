@@ -1,4 +1,4 @@
-mespline = function(y, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
+nonspline = function(y, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
 {
   # Estimate parameters of yi=f(xi)+ei where (vi,yi) is observed instead of (xi,yi)
   library(splines)
@@ -77,6 +77,7 @@ mespline = function(y, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
     # sigma
     cpterm = sum(y^2) - 2*sum(y*drop(vphiq%*%munu.q)) + sum(diag(vphiqtvphiq%*%(outer(munu.q,munu.q)+signu.q)))
     bsigtl = bsig + 0.5*cpterm
+    sig.ratio = asigtl/bsigtl
     
     # ELBO
     lbnew = -0.5*N*log(2*pi) - 0.5*N*(log(bsigtl)-digamma(asigtl)) - 0.5*sig.ratio*cpterm
@@ -113,7 +114,7 @@ mespline = function(y, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
 
 set.seed(10)
 N = 130
-RR = 0.8
+RR = 0.7
 xi2 = 0.8
 sig2v = xi2/RR-xi2
 mux = 1.5
@@ -123,20 +124,20 @@ f1 = function(x) 2*x+sin(pi*x)
 f2 = function(x) 3*exp(-2*x)
 f3 = function(x) exp(0.8*x)
 y1 = f1(x) + rnorm(N)
-vb_result1 = mespline(y1,v)
+vb_result1 = nonspline(y1,v)
 ord = order(vb_result1$ex)
-plot(x,y1,ylab="y",main="Original pattern vs Denoised pattern")
+plot(x,y1,ylab="y",main="Original pattern(dot) vs Denoised pattern(line)")
 lines(vb_result1$ex[ord],vb_result1$post_curve[ord],lwd=3,col=2)
 lines(vb_result1$ex[ord],vb_result1$post_lower[ord],lwd=2,col=3)
 lines(vb_result1$ex[ord],vb_result1$post_upper[ord],lwd=2,col=3)
 y2 = f2(x) + rnorm(N)
-vb_result2 = mespline(y2,v)
+vb_result2 = nonspline(y2,v)
 plot(x,y2,ylab="y",main="Original pattern vs Denoised pattern")
 lines(vb_result2$ex[ord],vb_result2$post_curve[ord],lwd=3,col=2)
 lines(vb_result2$ex[ord],vb_result2$post_lower[ord],lwd=2,col=3)
 lines(vb_result2$ex[ord],vb_result2$post_upper[ord],lwd=2,col=3)
 y3 = f3(x) + rnorm(N)
-vb_result3 = mespline(y3,v)
+vb_result3 = nonspline(y3,v)
 plot(x,y3,ylab="y",main="Original pattern vs Denoised pattern")
 lines(vb_result3$ex[ord],vb_result3$post_curve[ord],lwd=3,col=2)
 lines(vb_result3$ex[ord],vb_result3$post_lower[ord],lwd=2,col=3)
