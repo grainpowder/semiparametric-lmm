@@ -1,6 +1,16 @@
-semispline = function(y, w, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
+semiparam = function(y, w, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
 {
-  # Code to estimate parameters of yi = Wi*beta + alpha*xi + vphi(xi)*theta
+  # Semiparametric Regression model where measurement error is present
+  # Model : yi = Wi*beta + f(xi) + ei
+  # Input
+  #   y       : response variable
+  #   w       : intact explanatory variables
+  #   v       : contaminated explanatory variable
+  #   prior   : predefined values of hyperparameters
+  #   maxiter : stopping criteria(maximum number of iterations)
+  #   tol     : stopping critieria(tolerance level for change of ELBO)
+  #   n_grids : level of accuracy of involved numerical integration
+  
   library(splines)
   N = length(y)
   D = ncol(w)
@@ -60,7 +70,7 @@ semispline = function(y, w, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
   lbold = -Inf
   for (iter in 1:maxiter)
   {
-    # denoised value
+    # denoised values
     common = -0.5*(sig.ratio*diag(vphig%*%(outer(munu.q,munu.q)+signu.q)%*%t(vphig)) + (1/sig2v+xi.ratio)*(grids^2) - 2*mutl*xi.ratio*grids)
     lnpgrids = common + outer(grids, v)/sig2v + sig.ratio*outer(drop(vphig%*%munu.q), drop(y-W%*%mubeta.q)); pgrids = exp(t(lnpgrids))
     normalizers = apply(pgrids, 1, sum)
@@ -93,8 +103,8 @@ semispline = function(y, w, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
     # sigma
     cp_beta = drop(W%*%mubeta.q)
     cp_nu = drop(vphiq%*%munu.q)
-    cpterm = sum(y^2) + sum(diag(vphiqtvphiq%*%(outer(munu.q,munu.q)+signu.q))) + sum(diag(WtW%*%(outer(mubeta.q,mubeta.q)+sigbeta.q)))
-    cpterm = cpterm - 2*sum(y*(cp_beta+cp_nu)) + 2*sum(cp_beta*cp_nu)
+    cpterm = sum((y-W%*%mubeta.q)^2) + sum(diag(WtW%*%sigbeta.q))
+    cpterm = cpterm - 2*sum((y-cp_beta)*cp_nu) + sum(diag(vphiqtvphiq%*%(outer(munu.q,munu.q)+signu.q)))
     bsigtl = bsig + 0.5*cpterm
     sig.ratio = asigtl/bsigtl
     
@@ -126,32 +136,10 @@ semispline = function(y, w, v, prior=NULL, maxiter=1000, tol=1e-4, n_grids=1e3)
   post_curve=drop(vphi%*%munu.q)
   curve_var=drop(vphi^2%*%diag(signu.q))
   return(list(
-    lb=lb, ex=ex, mubeta.q=mubeta.q, sigbeta.q=sigbeta.q, munu.q=munu.q, signu.q=signu.q, 
+    lb=lb, ex=ex, varx=varx, mubeta.q=mubeta.q, sigbeta.q=sigbeta.q, munu.q=munu.q, signu.q=signu.q, 
     sig.ratio=sig.ratio, tau.ratio=tau.ratio, xi.ratio=xi.ratio,
     post_lower=qnorm(0.025,post_curve,sqrt(curve_var)),
     post_upper=qnorm(0.975,post_curve,sqrt(curve_var)),
     post_curve=post_curve
   ))
 }
-
-set.seed(10)
-N = 130
-D = 6
-RR = 0.9
-xi2 = 0.8
-sig2v = xi2/RR-xi2
-mux = 1.5
-beta = rnorm(D+1)
-w = matrix(rnorm(N*D),N,D)
-x = rnorm(N, mux, sqrt(xi2))
-v = rnorm(N, x, sqrt(sig2v))
-f = function(x) 2*x+sin(pi*x)
-y = cbind(1,w)%*%beta + f(x) + rnorm(N)
-vb_result = semispline(y,w,v)
-plot(beta,vb_result$mubeta.q,main="Regression coefficiencts")
-lines(-10:10,-10:10)
-ord = order(vb_result$ex)
-plot(x,y-cbind(1,w)%*%beta,ylab="y",main="Original pattern(dot) vs Denoised pattern(line)")
-lines(vb_result$ex[ord],vb_result$post_curve[ord],lwd=3,col=2)
-lines(vb_result$ex[ord],vb_result$post_lower[ord],lwd=2,col=3)
-lines(vb_result$ex[ord],vb_result$post_upper[ord],lwd=2,col=3)

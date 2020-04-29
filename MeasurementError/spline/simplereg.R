@@ -1,6 +1,15 @@
 simplereg = function(y, v, prior=NULL, maxiter=1000, tol=1e-4, n_grid=1e3)
 {
-  # Estimate parameters of yi=b0+b1*xi+ei where (vi,yi) is observed instead of (xi,yi)
+  # Simple Linear Regression model where measurement error is present
+  # Model : yi = b0 + b1*xi
+  # Input
+  #   y       : response variable
+  #   v       : contaminated explanatory variable
+  #   prior   : predefined values of hyperparameters
+  #   maxiter : stopping criteria(maximum number of iterations)
+  #   tol     : stopping critieria(tolerance level for change of ELBO)
+  #   n_grids : level of accuracy of involved numerical integration
+  
   N = length(y)
   
   # Hyperparameters
@@ -78,21 +87,3 @@ simplereg = function(y, v, prior=NULL, maxiter=1000, tol=1e-4, n_grid=1e3)
   lb = lb[1:iter]
   return(list(lb=lb, ex=ex, varx=varx, mubeta.q=mubeta.q, sigbeta.q=sigbeta.q))
 }
-
-# y = b0 + b1x
-set.seed(10)
-N = 130
-RR = 0.8
-xi2 = 0.8
-sig2v = xi2/RR-xi2
-mux = 3
-beta = c(0.5, 1.1)
-x = rnorm(N, mux, sqrt(xi2))
-v = rnorm(N, x, sqrt(sig2v))
-y = cbind(1,x)%*%beta + rnorm(N)
-result = simplereg(y,v)
-par(mfrow=c(1,2))
-plot(result$lb,xlab="Iteration",ylab="",main="Evidence Lower Bound", type="l")
-plot(x,result$ex,xlab="True",ylab="Estimate",main="Corrupted variable")
-lines(-10:10,-10:10)
-result$mubeta.q
