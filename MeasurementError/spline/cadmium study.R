@@ -30,7 +30,16 @@ start = as.numeric(Sys.time())
 vb_result = randint(y,w,x,Z)
 print(paste("VB", round(as.numeric(Sys.time()) - start, 3), "seconds elapsed"))
 
+start = as.numeric(Sys.time())
+dpm_result = randint_dpm(y,w,x,Z)
+print(paste("VB", round(as.numeric(Sys.time()) - start, 3), "seconds elapsed"))
 
+plot(vb_result$mubeta.q, dpm_result$mubeta.q,xlab="Normal",ylab="DPM",main="Fixed Effects")
+lines(-10:10,-10:10)
+plot(vb_result$mub.q, dpm_result$mub.q,xlab="Normal",ylab="DPM",main="Random Intercepts")
+lines(-10:10,-10:10)
+plot(vb_result$xgrid,vb_result$post_curve,type="l")
+lines(dpm_result$xgrid,dpm_result$post_curve,type="l",col=2)
 
 # MCMC --------------------------------------------------------------------
 library(rstan)

@@ -1,6 +1,6 @@
 randint = function(y, w, v, Z, n_intknot=30, prior=NULL, maxiter=500, tol=1e-3, n_grids=1e3, resolution=200)
 {
-  # Semiparametric Random Intercept model where measurement error is present using first order polynomial basis
+  # Semiparametric Random Intercept model with measurement error using first order polynomial basis
   # Model : y_{it} = W_{it}*beta + b_i + f(x_{it}) + e_{it}
   # Input
   #   y       : response variable
