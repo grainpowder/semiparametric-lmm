@@ -1,6 +1,8 @@
-library(bspmmGP)
-library(dplyr)
 
+# Data handling -----------------------------------------------------------
+
+library(dplyr)
+cadmium = read.csv("./cadmium.csv", header=TRUE)
 study = cadmium$studycode   # study code
 w = cbind(ifelse(cadmium$ethnicity == 1, 1, 0),
           ifelse(cadmium$age >= 50, 1, 0),
@@ -20,14 +22,17 @@ label = unique(study)
 Z = matrix(0, nrow(w), length(label))
 for(idx in 1:length(label)) Z[which(study==label[idx]),idx] = 1
 
-start = as.numeric(Sys.time())
-vb_result = randomintercept(y,w,x,Z)
-print(paste("VB", round(as.numeric(Sys.time()) - start, 3), "seconds elapsed"))
 
+# Random Intercept MER ----------------------------------------------------
+
+source("./randintmer.R")
+start = as.numeric(Sys.time())
+vb_result = randintmer(y,w,x,Z,n_intknot=2)
+print(paste("VB", round(as.numeric(Sys.time()) - start, 3), "seconds elapsed"))
 plot(vb_result$lb, main="ELBO", type="l", xlab="Iterations", ylab="")
 residual = y-cbind(1,w)%*%vb_result$mubeta.q-Z%*%vb_result$mub.q
-plot(x,residual)
-ord = order(x)
-lines(x[ord],vb_result$post_curve[ord],lwd=2,col=2)
-lines(x[ord],vb_result$post_upper[ord],lwd=2,lty=2)
-lines(x[ord],vb_result$post_lower[ord],lwd=2,lty=2)
+plot(x,residual,main="Estimated mean curve",xlab=expression(logUcd[GM]))
+ord = order(vb_result$xgrid)
+lines(vb_result$xgrid[ord],vb_result$post_curve[ord],lwd=2,col=2)
+lines(vb_result$xgrid[ord],vb_result$post_upper[ord],lwd=2,col=3)
+lines(vb_result$xgrid[ord],vb_result$post_lower[ord],lwd=2,col=3)
