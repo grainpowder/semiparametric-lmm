@@ -1,21 +1,71 @@
-
-
-# 1. Standard Non/Semiparametric ------------------------------------------
-
-source("regression.R")
-
-# Nonparametric
-# Example provided in Appendix of Wand(2008)
+library(rstan)
+library(splines)
 library(lattice)
+library(ggplot2)
+
+# 1. Standard Nonparametric regression ------------------------------------
+# Replicating example provided in Appendix of Wand(2008)
 x = environmental$radiation
 y = (environmental$ozone)^(1/3)
-vb_result = regression(y,x,n_intknot=2)
-plot(x,y,xlab="radiation", ylab="cuberoot of ozone", main="Result of B-spline basis")
-ord = order(x)
-lines(x[ord],vb_result$mubeta.q+vb_result$post_curve[ord],lwd=2,col=2)
-lines(x[ord],vb_result$mubeta.q+vb_result$post_upper[ord],lwd=2,lty=2)
-lines(x[ord],vb_result$mubeta.q+vb_result$post_lower[ord],lwd=2,lty=2)
-plot(vb_result$lb, ylab="ELBO", xlab="Iteration", main="ELBO plot")
+source("regression.R")
+n_intknot = 2
+
+# VB
+vb_result = regression(y, x, n_intknot=n_intknot)
+
+# MCMC
+resolution = 200 # number of x's to estimate f(x)
+order = 4 # To build cubic B-spline basis
+knots = quantile(unique(x), seq(0,1,length=n_intknot+2)[-c(1,n_intknot+2)])
+boundary = c(min(x)-sd(x)/2, max(x)+sd(x)/2)
+xgrid = seq(boundary[1], boundary[2], length.out=resolution) 
+BsGrid = bs(x=xgrid, knots=knots, intercept=TRUE, Boundary.knots=boundary)
+data = list(num_data=length(y),
+            n_intknot=n_intknot,
+            knots=knots,
+            boundary=boundary,
+            order=order,
+            resolution=resolution,
+            Y=y, X=x,
+            BsGrid=BsGrid)
+# set.seed(100)
+# mcmc_result = stan("./stan_repo/nonparametric/code.stan", data=data, iter=1e3)
+# write.csv(extract(mcmc_result, 'fxGrid')$fxGrid, "./stan_repo/nonparametric/samples_nonparametric_fxGrid.csv", row.names=FALSE)
+# write.csv(extract(mcmc_result, 'beta')$beta, "./stan_repo/nonparametric/samples_nonparametric_beta.csv", row.names=FALSE)
+mcmc_curve = as.matrix(read.csv("./stan_repo/nonparametric/samples_nonparametric_fxGrid.csv", header=TRUE))
+mcmc_beta = as.matrix(read.csv("./stan_repo/nonparametric/samples_nonparametric_beta.csv", header=TRUE))
+
+plot(x,y,xlab="radiation",ylab="cuberoot of ozone",main="Esimated mean curves")
+lines(xgrid, vb_result$mubeta.q + vb_result$post_curve, col=2, lwd=2)
+lines(xgrid, vb_result$mubeta.q + vb_result$post_upper, col=2, lty=2)
+lines(xgrid, vb_result$mubeta.q + vb_result$post_lower, col=2, lty=2)
+lines(xgrid, mean(mcmc_beta) + colMeans(mcmc_curve), col=3, lwd=3)
+lines(xgrid, mean(mcmc_beta) + apply(mcmc_curve,2,quantile,0.025), col=3, lty=2)
+lines(xgrid, mean(mcmc_beta) + apply(mcmc_curve,2,quantile,0.975), col=3, lty=2)
+legend(x=0,y=5.5,legend=c("VB", "MCMC"), col=c(2,3), lwd=c(2,2), bty="n")
+
+# # Result presentation(ggplot version)
+# # Intercept
+# vb_intercept = vb_result$mubeta.q
+# mcmc_intercept = mean(mcmc_beta)
+# # Polygon
+# vb_polygon = data.frame(
+#   variate = c(vb_result$xgrid, rev(vb_result$xgrid)),
+#   area = c(vb_intercept + vb_result$post_upper, vb_intercept + rev(vb_result$post_lower)))
+# mcmc_polygon = data.frame(
+#   variate = c(xgrid, rev(xgrid)),
+#   area = c(mcmc_intercept + apply(mcmc_curve,2,quantile,0.025), mcmc_intercept + rev(apply(mcmc_curve,2,quantile,0.975))))
+# # Mean curves
+# ozone = data.frame(x=x, y=y)
+# mc = ggplot() +
+#   geom_point(data=ozone, mapping=aes(x=x,y=y)) +
+#   geom_polygon(data=mcmc_polygon,aes(x=variate,y=area), fill="deepskyblue4", alpha=0.3) +
+#   geom_polygon(data=vb_polygon,aes(x=variate,y=area), fill="darkorange3", alpha=0.3) +
+#   geom_line(data=data.frame(x=xgrid, y=mcmc_intercept+colMeans(mcmc_curve)),
+#             mapping=aes(x=x,y=y),color="deepskyblue4",size=1.5) +
+#   geom_line(data=data.frame(x=vb_result$xgrid, y=vb_intercept+vb_result$post_curve),
+#             mapping=aes(x=x,y=y),color="darkorange3",size=1.5) +
+#   xlab("radiation") + ylab("cuberoot of ozone") + theme_bw() + ggtitle("Estimated Mean curve")
 
 # Semiparametric
 set.seed(10)

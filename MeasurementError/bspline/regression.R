@@ -75,9 +75,12 @@ regression = function(y, x, w=NULL, n_intknot=10, prior=NULL, maxiter=1000, tol=
     lbold = lbnew
   }
   lb = lb[1:iter]
+  xgrid = seq(min(x)-sd(x)/2, max(x)+sd(x)/2, length.out=resolution) 
+  vphi = bs(x=xgrid, knots=intKnots, intercept=TRUE, Boundary.knots=boundary)
   post_curve=drop(vphi%*%muu.q)
   return(list(
-    lb=lb, mubeta.q=mubeta.q, sigbeta.q=sigbeta.q, muu.q=muu.q, sigu.q=sigu.q,
+    lb=lb, xgrid=xgrid,
+    mubeta.q=mubeta.q, sigbeta.q=sigbeta.q, muu.q=muu.q, sigu.q=sigu.q,
     sig.ratio=sig.ratio, ups.ratio=ups.ratio,
     post_curve=post_curve,
     post_lower=vphi%*%qnorm(0.025,muu.q,sqrt(diag(sigu.q))),
