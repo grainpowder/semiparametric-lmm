@@ -20,14 +20,15 @@ knots = quantile(unique(x), seq(0,1,length=n_intknot+2)[-c(1,n_intknot+2)])
 boundary = c(min(x)-sd(x)/2, max(x)+sd(x)/2)
 xgrid = seq(boundary[1], boundary[2], length.out=resolution) 
 BsGrid = bs(x=xgrid, knots=knots, intercept=TRUE, Boundary.knots=boundary)
-data = list(num_data=length(y),
-            n_intknot=n_intknot,
-            knots=knots,
-            boundary=boundary,
-            order=order,
-            resolution=resolution,
-            Y=y, X=x,
-            BsGrid=BsGrid)
+data = list(
+    num_data=length(y),
+    n_intknot=n_intknot,
+    knots=knots,
+    boundary=boundary,
+    order=order,
+    resolution=resolution,
+    Y=y, X=x,
+    BsGrid=BsGrid)
 # set.seed(100)
 # mcmc_result = stan("./stan_repo/nonparametric/code.stan", data=data, iter=1e3)
 # write.csv(extract(mcmc_result, 'fxGrid')$fxGrid, "./stan_repo/nonparametric/samples_nonparametric_fxGrid.csv", row.names=FALSE)
@@ -35,6 +36,7 @@ data = list(num_data=length(y),
 mcmc_curve = as.matrix(read.csv("./stan_repo/nonparametric/samples_nonparametric_fxGrid.csv", header=TRUE))
 mcmc_beta = as.matrix(read.csv("./stan_repo/nonparametric/samples_nonparametric_beta.csv", header=TRUE))
 
+# Result presentation
 plot(x,y,xlab="radiation",ylab="cuberoot of ozone",main="Esimated mean curves")
 lines(xgrid, vb_result$mubeta.q + vb_result$post_curve, col=2, lwd=2)
 lines(xgrid, vb_result$mubeta.q + vb_result$post_upper, col=2, lty=2)
@@ -67,30 +69,12 @@ legend(x=0,y=5.5,legend=c("VB", "MCMC"), col=c(2,3), lwd=c(2,2), bty="n")
 #             mapping=aes(x=x,y=y),color="darkorange3",size=1.5) +
 #   xlab("radiation") + ylab("cuberoot of ozone") + theme_bw() + ggtitle("Estimated Mean curve")
 
-# Semiparametric
-set.seed(10)
-N = 100
-f = function(x) 2*x+sin(2*pi*x)
-x = runif(N) * 2
-D = 5
-w = matrix(rnorm(N*D), ncol=D)
-beta = rnorm(D+1)
-y = cbind(1,w)%*%beta + f(x) + rnorm(N, sd=0.5)
-vb_result = regression(y,x,w)
-resid = y - cbind(1,w)%*%vb_result$mubeta.q
-plot(x,resid,main="Semiparametric")
-ord = order(x)
-lines(x[ord],vb_result$post_curve[ord],lwd=2,col=2)
-lines(x[ord],vb_result$post_upper[ord],lwd=2,lty=2)
-lines(x[ord],vb_result$post_lower[ord],lwd=2,lty=2)
-plot(beta[-1], vb_result$mubeta.q[-1], xlab="True", ylab="Estimated", main="Fixed Effects")
-lines(-10:10, -10:10)
-plot(vb_result$lb, ylab="ELBO", xlab="Iteration", main="ELBO plot")
-
-
 # 2. Semiparametric regression with Measurement Error -----------------
 
 source("semimer.R")
+n_intknot = 5
+
+# Data generation
 set.seed(10)
 N = 130
 D = 6
@@ -104,7 +88,34 @@ x = rnorm(N, mux, sqrt(xi2))
 v = rnorm(N, x, sqrt(sig2v))
 f = function(x) 2*x+2*sin(pi*x)
 y = cbind(1,w)%*%beta + f(x) + rnorm(N, sd=0.7)
+
+# VB
 vb_result = semimer(y,w,v,n_intknot=5)
+
+# MCMC
+resolution = 200 # number of x's to estimate f(x)
+order = 4 # To build cubic B-spline basis
+knots = quantile(unique(v), seq(0,1,length=n_intknot+2)[-c(1,n_intknot+2)])
+boundary = c(min(v)-sd(v)/2, max(v)+sd(v)/2)
+xgrid = seq(boundary[1], boundary[2], length.out=resolution) 
+bsgrid = bs(x=xgrid, knots=knots, intercept=TRUE, Boundary.knots=boundary)
+data = list(
+    n_obs = length(y),
+    n_intknot = length(knots),
+    n_regcoef = D,
+    int_knots = knots,
+    boundary = boundary,
+    order = order,
+    resolution = resolution,
+    y = y,
+    v = v,
+    bsgrid = bsgrid,
+    w = w)
+set.seed(100)
+mcmc_result = stan("./stan_repo/mer_semiparametric/code.stan", data=data, iter=1e3)
+write.csv(extract(mcmc_result, 'fxGrid')$fxGrid, "./stan_repo/nonparametric/samples_nonparametric_fxGrid.csv", row.names=FALSE)
+write.csv(extract(mcmc_result, 'beta')$beta, "./stan_repo/nonparametric/samples_nonparametric_beta.csv", row.names=FALSE)
+
 plot(vb_result$lb, main="ELBO plot", ylab="ELBO", xlab="Iterations", sub=paste("Converged at",round(vb_result$lb[length(vb_result$lb)],3)))
 plot(beta[-1], vb_result$mubeta.q[-1], main="Fixed effects", xlab="True", ylab="Estimated")
 lines(-10:10,-10:10)
