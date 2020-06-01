@@ -44,7 +44,9 @@ randintmer = function(y, w, v, Z, n_intknot=10, prior=NULL, maxiter=500, tol=1e-
   boundary = c(min(v)-sd(v)/2, max(v)+sd(v)/2)
   
   # Compose spline basis of grids
+  # grids = seq(min(v), max(v), length.out=n_grids)
   grids = seq(min(v)-sd(v)/2, max(v)+sd(v)/2, length.out=n_grids)
+  # vphig = bs(x=grids, knots=intKnots, intercept=TRUE)
   vphig = bs(x=grids, knots=intKnots, intercept=TRUE, Boundary.knots=boundary)
   n_knot = ncol(vphig)
   
@@ -148,6 +150,7 @@ randintmer = function(y, w, v, Z, n_intknot=10, prior=NULL, maxiter=500, tol=1e-
   lb = lb[1:iter]
   xgrid = seq(min(v)-sd(v)/2, max(v)+sd(v)/2, length.out=resolution) 
   vphi = bs(x=xgrid, knots=intKnots, intercept=TRUE, Boundary.knots=boundary)
+  # vphi = bs(x=xgrid, knots=intKnots, intercept=TRUE)
   post_curve=drop(vphi%*%muu.q)
   return(list(
     lb=lb, ex=ex, varx=varx, mubeta.q=mubeta.q, sigbeta.q=sigbeta.q, mub.q=mub.q, sigb.q=sigb.q, muu.q=muu.q, sigu.q=sigu.q,
