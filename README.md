@@ -9,7 +9,7 @@ With this concept in mind, <b>semiparametric mixed effects model refers to the l
 
 Unknown density and functional relationship can be estimated by adopting mixture of Dirichlet Process prior(DPM) and Gaussian Process prior(GP) respectively.
 
-This repository contains implementation of two types of semiparametric mixed effects model: Random Intercept model and Stochastic Frontier model. Random effect of each model is estimated by adopting DPM while each contains a variate whose relationship with response variable is nonlinear and therefore should be estimated by adopting GP prior. Especially, <b>every code is implemented using Variational inference, which will be shown to be 1,000~5,000 times faster compared to MCMC</b>, while maintaining similar level of accuracy.
+This repository contains implementation of two types of semiparametric mixed effects model: Random Intercept model and Stochastic Frontier model. Random effect of each model is estimated by adopting DPM while each contains a variate whose relationship with response variable is nonlinear and therefore should be estimated by adopting GP prior. Especially, <b>every code is implemented using Variational inference, which is shown to be 1,000~5,000 times faster compared to MCMC</b>, while maintaining similar level of accuracy. For simplicity, result for Random Intercept model is only presented in this README.
 
 ## Random Intercept model
 
@@ -58,7 +58,3 @@ In this setting, both Variational Inference(or VB, Variational Bayes) and MCMC w
 - Mean curve plot illustrates two types of residuals and mean curves with 95% credible regions. As both curve shows increasing convex shape, this plot also implies that each method returned result that is similar to another.
 
 As explained, estimation result were similar, but elapse time of each method wasn't. For VB method, it was 0.093 second, while that of MCMC was 94.55 seconds. In short, <b>variational inference returned similarly accurate result compared to MCMC, while almost 1,016 times faster</b>.
-
-## Stochastic Frontier model
-
-This model <b>assumes random effect to be any positive real value</b>.
