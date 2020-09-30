@@ -1,4 +1,4 @@
-source("../RandomIntercept/normal.R")
+source("./normal.R")
 source("../misc/make_Z.R")
 library(ggplot2)
 library(gridExtra)
